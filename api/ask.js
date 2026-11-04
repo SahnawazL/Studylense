@@ -576,6 +576,7 @@ async function streamGemini(keys, ctx, onChunk) {
   }
 
   const body = {
+    contents,
     system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter, question) }] },
     generationConfig: {
       temperature:     temp,
