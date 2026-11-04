@@ -5495,17 +5495,23 @@ function injectMols(container) {
   if (!list.length) return;
   loadSmilesEngine().then(() => {
     list.forEach(card => {
-      let smiles = decodeURIComponent(card.getAttribute('data-smiles'));
+      const smiles = decodeURIComponent(card.getAttribute('data-smiles'));
+      const name = card.querySelector('.ans-diagram-label')?.textContent.replace('🧪', '').trim() || 'Structure';
       card.removeAttribute('data-smiles');
-      // with every hydrogen written out, show the carbons by name as well
-      if (smiles.includes('[H]')) smiles = smiles.replace(/(^|[^A-Za-z[])C(?![la-z])/g, (m, a) => `${a}[C]`).replace(/(^|[^A-Za-z[])C(?![la-z])/g, (m, a) => `${a}[C]`);
       const box = card.querySelector('.ans-mol-box');
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       const width = Math.max(240, Math.min(420, box.clientWidth || 300)), height = 210;
       svg.setAttribute('width', width); svg.setAttribute('height', height);
-      const fail = () => { card.style.display = 'none'; };   // the written answer still stands
+      const fail = () => {       // a bad formula never shows an error: the name stays, the written answer carries on
+        const note = document.createElement('p'); note.innerHTML = '<strong></strong>'; note.firstChild.textContent = name; card.replaceWith(note);
+      };
       try {
         const engine = new SmilesDrawer.SvgDrawer({ width, height, bondThickness: 1.4, bondLength: 24, shortBondLength: .85, fontSizeLarge: 10, fontSizeSmall: 7, padding: 16, explicitHydrogens: true, terminalCarbons: true, compactDrawing: false });
+        // with the hydrogens written out, label every carbon too: methane must show its C
+        if (smiles.includes('[H]')) {
+          const pre = engine.preprocessor, plan = pre.processGraph.bind(pre);
+          pre.processGraph = () => { plan(); pre.graph.vertices.forEach(v => { if (v.value.element === 'C') v.value.drawExplicit = true; }); };
+        }
         SmilesDrawer.parse(smiles, tree => {
           try {
             engine.draw(tree, svg, 'dark', null, false);
@@ -5515,7 +5521,11 @@ function injectMols(container) {
         }, fail);
       } catch (_) { fail(); }
     });
-  }).catch(() => list.forEach(card => { card.style.display = 'none'; }));
+  }).catch(() => list.forEach(card => {
+    const note = document.createElement('p'); note.innerHTML = '<strong></strong>';
+    note.firstChild.textContent = card.querySelector('.ans-diagram-label')?.textContent.replace('🧪', '').trim() || 'Structure';
+    card.replaceWith(note);
+  }));
 }
 
 function injectSVGs(container) {
