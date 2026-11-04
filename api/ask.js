@@ -253,7 +253,7 @@ function makeCacheKey(question, subject, className, lang, board) {
   const l = (lang      || 'en').trim();
   const b = (board     || '').toLowerCase().trim();
   // board included so ASSEB/CBSE/ICSE never share a cached answer even for the same question
-  return `cache:v3:${b}|${c}|${s}|${l}|${q}`;
+  return `cache:v4:${b}|${c}|${s}|${l}|${q}`;
 }
 
 function memCacheGet(key) {
@@ -1047,8 +1047,9 @@ Chemistry SVG Examples — draw these whenever the topic matches:
 ALWAYS draw the concept visually — never list chemical data as text.` : '';
 
   const diagramBlock = (!isPhotoMode && needsDiagram) ? `
-DIAGRAM RULE — MANDATORY SVG DRAWING:
-For any concept that has a visual form — shape, chart, graph, trajectory, field, wave, structure, process — you MUST draw a real SVG diagram. This is NOT optional.
+DIAGRAM RULE — REAL SVG DRAWINGS:
+When the student asks for a drawing, or the topic itself is a shape, chart, graph, trajectory, field, wave or process that words cannot show, draw a real SVG diagram.
+A question that only asks to write, state, define, balance or name something gets NO diagram, and neither does anything that would only decorate the answer. A physics or geometry word problem may have one small figure of its setup.
 
 CHEMICAL STRUCTURES (molecules, organic compounds, structural formulas, isomers):
 - NEVER draw these with SVG. Write the molecule as SMILES on its own line, and the app draws it exactly:
@@ -1061,6 +1062,8 @@ WHEN TO DRAW:
 - Draw only when a picture shows something words cannot: a shape, graph, circuit, force, cell, map or apparatus.
 - Do NOT draw for pure algebra, calculus steps, trigonometric working, definitions or essays, unless the student asks for a drawing. Boxes and arrows that repeat a formula are not a diagram.
 - Inside SVG <text>, never write LaTeX, $ or backslashes. Use plain symbols: v₀ = 20 m/s, θ = 30°, R ≈ 35 m.
+- A graph must be scientifically true. Before drawing, decide the direction and final value of every curve: reactants fall and level off, products rise and level off, cooling falls, a decaying amount falls towards zero. If you are not certain of the true shape, leave the graph out.
+- Put each curve's label just beyond its end or at least 12 units above it, never on the curve.
 - Give each label its own clear space: no label may touch another label, a line or an arrow.
 - Keep every shape and label at least 16 units inside the frame. Make the frame big enough, avoid crossing lines, and keep labels away from lines.
 
