@@ -5370,6 +5370,26 @@ function parseSvg(raw) {
   return svg;
 }
 
+// AI drawings often run past their own frame. Once on screen, the frame grows to
+// fit what was really drawn, so a label or box is never cut off.
+function fitSvg(svg) {
+  try {
+    const box = svg.getBBox();
+    if (!box.width || !box.height) return;
+    const vb = svg.viewBox.baseVal, pad = 8;
+    const x0 = Math.min(vb.x, box.x - pad), y0 = Math.min(vb.y, box.y - pad);
+    const x1 = Math.max(vb.x + vb.width, box.x + box.width + pad), y1 = Math.max(vb.y + vb.height, box.y + box.height + pad);
+    if (x0 === vb.x && y0 === vb.y && x1 === vb.x + vb.width && y1 === vb.y + vb.height) return;
+    const old = [vb.width, vb.height];
+    svg.setAttribute('viewBox', `${x0} ${y0} ${x1 - x0} ${y1 - y0}`);
+    // a background rectangle grows with the frame
+    const bg = svg.querySelector('rect');
+    if (bg && parseFloat(bg.getAttribute('width')) >= old[0] * .98 && parseFloat(bg.getAttribute('height')) >= old[1] * .98) {
+      bg.setAttribute('x', x0); bg.setAttribute('y', y0); bg.setAttribute('width', x1 - x0); bg.setAttribute('height', y1 - y0);
+    }
+  } catch (_) {}
+}
+
 function injectSVGs(container) {
   container.querySelectorAll('.ans-svg-diagram[data-svg]').forEach(wrapper => {
     try {
