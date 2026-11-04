@@ -34,6 +34,7 @@ const S = {
  bengali: 'উত্তর: $x = 5$। **ধাপ ১:** $$২x + ৩ = ১৩$$\nসূত্র: $\\text{ক্ষেত্রফল} = দৈর্ঘ্য \\times প্রস্থ$',
  hindi: 'उत्तर: **क्षेत्रफल** $= \\frac{1}{2} \\times$ आधार × ऊंचाई। $$\\text{चाल} = \\frac{\\text{दूरी}}{\\text{समय}}$$',
  assamese: 'উত্তৰ: পানীৰ সংকেত \\ce{H2O}। $v = u + at$',
+ math_tricky: 'A $T = 25\\,^\\circ\\text{C}$ B $37^{\\circ}C$ C $30°$ D $\\degree$ E $50%$ F $\\text{ m/s}^2$ G $\\mathrm{kg}$ H $\\overrightarrow{AB}$ I $\\cancel{x}$ J $\\xrightarrow{heat}$ K $\\underbrace{a+b}_{n}$ L $\\boxed{5}$ M $\\operatorname{sin}x$ N $\\log_2 8$ O $\\mathbb{R}$ P $\\implies$ Q $\\iff$ R $\\oint$ S $\\ell$ T $\\dots$ U $x ≤ 5$ V $2 × 3$ W $x²$ X $H₂O$ Y $\\textbf{bold}$ Z $a\\_b$ a $\\text{speed}=\\frac{d}{t}$ b $\\ohm$ c $\\sqrt[3]{8}$ d $\\frac12$ e $10^{-3}$ f $\\sim$ g $\\parallel$ h $\\perp$ i $\\%$ j $\\pm$ k $π r^2$ l $\\vec{v}_0$ m $\\mathcal{L}$ n $\\tan^{-1}$ o $\\overset{\\Delta}{\\to}$ p $\\pu{5 m/s}$',
  broken_math: 'Bad: $\\frac{1}{2$ and $\\left( x$ and $$\\unknowncommand{x}$$ end.',
  empty: '',
 };
@@ -53,7 +54,7 @@ for (const [name, text] of Object.entries(S)) {
     if (/\\(frac|sqrt|times|ce\{|begin|theta|text\{|\(|\[)/.test(visible)) issues.push('raw LaTeX');
     if (/\*\*|%%|^#{1,6} |\$\$/m.test(visible)) issues.push('raw markers');
     if (box.querySelector('.katex-error')) issues.push('katex error: ' + box.querySelector('.katex-error').textContent.slice(0, 40));
-    if (box.querySelector('.ans-math-raw') && !/Bad:/.test(text)) issues.push('formula fell back to text');
+    if (box.querySelector('.ans-math-raw') && !/Bad:/.test(text)) issues.push('formula fell back to text: ' + [...box.querySelectorAll('.ans-math-raw')].map(c => c.textContent).join(' ¦ ').slice(0, 160));
     if (box.querySelector('.svg-placeholder')) issues.push('svg stuck');
     if (box.querySelector('script') || box.querySelector('[onload]')) issues.push('unsafe svg');
     if (box.scrollWidth > box.clientWidth + 1) { const w = [...box.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > box.getBoundingClientRect().right + 2 && !e.closest('.ans-formula,.ans-table-wrap,.ans-svg-wrap,.ans-code-block'))[0]; if (w) issues.push('overflow: ' + w.className); }

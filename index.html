@@ -989,7 +989,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-left-color: var(--accent);
   padding: 0.65rem 0.5rem;  /* less side padding so SVG has more room */
 }
-.ans-math-raw { display: block; white-space: pre-wrap; word-break: break-word; }
+.ans-math-raw { white-space: pre-wrap; word-break: break-word; }
+.ans-math-raw-block { display: block; }
 .ans-hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: .7rem 0; }
 .ans-table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 .ans-svg-wrap {
@@ -5039,10 +5040,12 @@ function fmt(t) {
     return katex.renderToString(expr, { displayMode: display, throwOnError: true, strict: false, macros: { ...MATH_MACROS } });
   }
   function renderKatex(expr, display) {
-    const plain = display ? `<code class="ans-math-raw">${mathSafe(expr)}</code>` : `<code>${mathSafe(expr)}</code>`;
+    const plain = `<code class="ans-math-raw${display ? ' ans-math-raw-block' : ''}">${mathSafe(expr)}</code>`;
     if (typeof katex === 'undefined') return plain;
     let e = String(expr).replace(/%%DOLLAR%%/g, '\\$').replace(/\\\\\s*$/, '').trim();
     if (!e) return '';
+    e = e.replace(/\\[,;:!]\s*\^/g, '\\,{}^')       // 25\,^\circ needs something to sit on
+         .replace(/(^|[^\\])%/g, '$1\\%');            // a bare % would hide the rest of the formula
     // align and friends only work on their own line: inside a sentence use their inline twin
     if (!display) e = e.replace(/\\(begin|end)\{(align|gather|equation)\*?\}/g, (m, w) => `\\${w}{aligned}`);
     const tries = [
