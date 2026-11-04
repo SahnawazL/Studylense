@@ -5101,6 +5101,8 @@ function fmt(t) {
   t = t.replace(/```([\w+-]*)[ \t]*\n?([\s\S]*?)(?:```|$)/g, (_, lang, code) => keep({ type: 'code', content: code.trim(), lang: lang || '' }));
   t = t.replace(/`([^`\n]+)`/g, (_, code) => keep({ type: 'icode', content: code }));
   t = t.replace(/\\\$/g, '%%DOLLAR%%');   // a written dollar sign, not maths
+  // a price like $12 is money, unless maths follows it, as in $2 + 3$ or $5 \\times 2$
+  t = t.replace(/\$(?=\d[\d,]*(?:\.\d+)?(?:[\s.,;:!?)]|$)(?!\d*[\d,.]*\s*[\\=+\-*/^<>]))/gm, '%%DOLLAR%%');
 
   // ── Step 1: Protect $$ ... $$ display math (may contain \ce{} — KaTeX handles it natively)
   t = t.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => {
@@ -5155,6 +5157,20 @@ function fmt(t) {
   t = processedLines.join('\n');
   t = t.replace(/^\s*>\s?/gm, '');   // quote markers from the AI: keep the words, not the marker
 
+  // ── Step 6: Standalone \ce{...} on its own line → chemistry block
+  t = t.replace(/^[ \t]*\\ce\{((?:[^{}]|\{[^{}]*\})*)\}[ \t]*$/gm, (_, ce) => {
+    const idx = blocks.length;
+    blocks.push({ type: 'chemblock', content: ce.trim() });
+    return `%%BLK${idx}%%`;
+  });
+
+  // ── Step 7: Inline \ce{...} remaining (inside text sentences)
+  t = t.replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, ce) => {
+    const idx = blocks.length;
+    blocks.push({ type: 'chem', content: ce.trim() });
+    return `%%BLK${idx}%%`;
+  });
+
   // ── Step 5b: LaTeX left in a sentence with no maths marker around it
   t = t.replace(/(\d)\s*\^\s*\{?\\circ\}?/g, '$1°');
   {
@@ -5178,20 +5194,6 @@ function fmt(t) {
     t = t.replace(/\\(?:times|div|pm|mp|cdot|leq?|geq?|neq?|approx|equiv|propto|infty|rightarrow|leftarrow|Rightarrow|rightleftharpoons|to|circ|angle|triangle|degree|alpha|beta|gamma|delta|Delta|epsilon|theta|lambda|mu|nu|pi|rho|sigma|Sigma|tau|phi|omega|Omega|therefore|because)(?![a-zA-Z])/g,
       (m) => keep({ type: 'imath', content: m }));
   }
-
-  // ── Step 6: Standalone \ce{...} on its own line → chemistry block
-  t = t.replace(/^[ \t]*\\ce\{((?:[^{}]|\{[^{}]*\})*)\}[ \t]*$/gm, (_, ce) => {
-    const idx = blocks.length;
-    blocks.push({ type: 'chemblock', content: ce.trim() });
-    return `%%BLK${idx}%%`;
-  });
-
-  // ── Step 7: Inline \ce{...} remaining (inside text sentences)
-  t = t.replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, ce) => {
-    const idx = blocks.length;
-    blocks.push({ type: 'chem', content: ce.trim() });
-    return `%%BLK${idx}%%`;
-  });
 
   // ── Step 7b: Everything left is plain text. Escape it, or "x<y" would swallow
   // the rest of the sentence as if it were an HTML tag.

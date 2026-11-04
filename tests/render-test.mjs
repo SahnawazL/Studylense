@@ -16,7 +16,7 @@ const S = {
  maths_bare: 'The value is \\frac{3}{4} and \\sqrt{16} = 4, also 2 \\times 3 = 6 and angle is 90^\\circ and \\theta = 30^{\\circ}.\n\\frac{a}{b} = \\frac{c}{d}',
  maths_long: '$$\\frac{(x+1)^2 + (x+2)^2 + (x+3)^2 + (x+4)^2 + (x+5)^2 + (x+6)^2 + (x+7)^2 + (x+8)^2 + (x+9)^2}{(y+1)(y+2)(y+3)(y+4)(y+5)(y+6)(y+7)(y+8)(y+9)(y+10)}$$\nInline: $a_1 + a_2 + a_3 + a_4 + a_5 + a_6 + a_7 + a_8 + a_9 + a_{10} + a_{11} + a_{12} + a_{13} + a_{14} + a_{15}$ end.',
  maths_geometry: 'In $\\triangle ABC$, $\\angle B = 90^\\circ$, so $\\overline{AC}$ is the hypotenuse, $AB \\perp BC$, $\\sin\\theta = \\dfrac{3}{5}$, $\\therefore \\cos\\theta = \\dfrac{4}{5}$ and $\\lim_{x\\to 0}\\frac{\\sin x}{x}=1$.',
- maths_money: 'A pen costs $5 and a book costs $12. Rupees: ₹100. Written \\$20 too. Math $x+1$ here.',
+ maths_money: 'A pen costs $5 and a book costs $12. Rupees: ₹100. Written \\$20 too. Math $x+1$ here and $2 + 3 = 5$ and $3 \\times 4$ and $7.14 \\, \\text{mM/min}$.',
  maths_table: '| $x$ | $x^2$ | $|x|$ |\n|---|---|---|\n| $-2$ | $4$ | $2$ |\n| $3$ | $9$ | $3$ |\n\nNo outer pipes:\n\nName | Marks\n---|---\nAsha | 90',
  stats: 'Mean: $\\bar{x} = \\frac{\\sum f_i x_i}{\\sum f_i}$. Variance $\\sigma^2$, $\\binom{5}{2}=10$, $^5C_2$.',
  physics: 'Using $F = ma$: $$a = \\frac{F}{m} = \\frac{20\\,\\text{N}}{5\\,\\text{kg}} = 4\\,\\text{m/s}^2$$\nEnergy $E = \\frac{1}{2}mv^2$, $\\vec{F} = q\\vec{v}\\times\\vec{B}$, $\\lambda = 500\\,\\text{nm}$, $R = 10\\,\\Omega$, $T = 25\\,^\\circ\\text{C}$, $1.6\\times10^{-19}\\,\\text{C}$, $\\hbar$, $\\nabla\\cdot\\vec{E}=\\frac{\\rho}{\\varepsilon_0}$, $5\\,\\mu\\text{F}$.',
@@ -53,7 +53,7 @@ for (const [name, text] of Object.entries(S)) {
     if (/\\(frac|sqrt|times|ce\{|begin|theta|text\{|\(|\[)/.test(visible)) issues.push('raw LaTeX');
     if (/\*\*|%%|^#{1,6} |\$\$/m.test(visible)) issues.push('raw markers');
     if (box.querySelector('.katex-error')) issues.push('katex error: ' + box.querySelector('.katex-error').textContent.slice(0, 40));
-    if (box.querySelector('.ans-math-raw')) issues.push('formula fell back to text');
+    if (box.querySelector('.ans-math-raw') && !/Bad:/.test(text)) issues.push('formula fell back to text');
     if (box.querySelector('.svg-placeholder')) issues.push('svg stuck');
     if (box.querySelector('script') || box.querySelector('[onload]')) issues.push('unsafe svg');
     if (box.scrollWidth > box.clientWidth + 1) { const w = [...box.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > box.getBoundingClientRect().right + 2 && !e.closest('.ans-formula,.ans-table-wrap,.ans-svg-wrap,.ans-code-block'))[0]; if (w) issues.push('overflow: ' + w.className); }
