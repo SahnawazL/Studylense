@@ -989,6 +989,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-left-color: var(--accent);
   padding: 0.65rem 0.5rem;  /* less side padding so SVG has more room */
 }
+.ans-math-raw { white-space: pre-wrap; word-break: break-word; }
+.ans-math-raw-block { display: block; }
+.ans-hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: .7rem 0; }
+.ans-table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 .ans-svg-wrap {
   display: flex;
   justify-content: center;
@@ -4359,7 +4363,11 @@ function typeText(el, text, payload, imageDataUrl) {
 // Lightweight preview renderer — no KaTeX, just readable markdown basics.
 function _previewChunkedText(rawText) {
   // Strip SVG blocks before HTML-escaping (they contain raw < > characters)
-  let t = rawText.replace(/\[SVG:[\s\S]*?<\/svg>\s*\]/g, '[📐 Diagram]');
+  let t = rawText
+    .replace(/```[\w-]*\s*(?:\[SVG:\s*)?<svg[\s\S]*?<\/svg>\s*\]?\s*```/gi, '[📐 Diagram]')
+    .replace(/(?:\[SVG:\s*)?<svg[\s>][\s\S]*?<\/svg>\s*\]?/gi, '[📐 Diagram]')
+    // still being written: never show its code to a student
+    .replace(/(?:```[\w-]*\s*)?(?:\[SVG:|<svg\b)[\s\S]*$/i, '[📐 Drawing the diagram…]');
 
   // HTML-escape so injected text can't break the DOM
   t = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -4368,14 +4376,15 @@ function _previewChunkedText(rawText) {
   t = t
     .replace(/\$\$[\s\S]*?\$\$/g,   '<span style="color:var(--muted);font-style:italic">[formula]</span>')
     .replace(/\\\[[\s\S]*?\\\]/g,   '<span style="color:var(--muted);font-style:italic">[formula]</span>')
+    .replace(/\\\([\s\S]*?\\\)/g,   '<span style="color:var(--muted);font-style:italic">[math]</span>')
+    .replace(/(?:\$\$|\\\[|\\\()[^]*$/, '<span style="color:var(--muted);font-style:italic">[formula…]</span>')
     .replace(/\$[^\$\n]{1,300}?\$/g,'<span style="color:var(--muted);font-style:italic">[math]</span>')
     .replace(/\\ce\{[^}]*\}/g,      '<span style="color:var(--muted);font-style:italic">[chem]</span>');
 
   // Basic markdown
   t = t
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,     '<em>$1</em>')
-    .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>');
+    .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>');
 
   // Newlines to line breaks
   t = t.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
@@ -5025,17 +5034,31 @@ function sendSuggestionChip(question) {
 
 function fmt(t) {
   // ── Helper: render a LaTeX string with KaTeX (mhchem loaded, so \ce{} works inside math too)
+  const MATH_MACROS = { '\\ohm': '\\Omega', '\\celsius': '{}^\\circ\\text{C}', '\\micro': '\\mu', '\\Ohm': '\\Omega', '\\tcdot': '\\cdot' };
+  const mathSafe = (x) => escapeHtml(String(x).replace(/%%DOLLAR%%/g, '$'));
+  function tryKatex(expr, display) {
+    return katex.renderToString(expr, { displayMode: display, throwOnError: true, strict: false, macros: { ...MATH_MACROS } });
+  }
   function renderKatex(expr, display) {
-    if (typeof katex === 'undefined') return display ? `<div class="ans-formula"><code>${expr}</code></div>` : `<code>${expr}</code>`;
-    try {
-      const rendered = katex.renderToString(expr, { displayMode: display, throwOnError: false, strict: false });
-      if (display) {
-        return rendered; // wrapped in .ans-formula div by caller
-      }
-      return rendered;
-    } catch(e) {
-      return display ? `<div class="ans-formula"><code>${expr}</code></div>` : `<code>${expr}</code>`;
+    const plain = `<code class="ans-math-raw${display ? ' ans-math-raw-block' : ''}">${mathSafe(expr)}</code>`;
+    if (typeof katex === 'undefined') return plain;
+    let e = String(expr).replace(/%%DOLLAR%%/g, '\\$').replace(/\\\\\s*$/, '').trim();
+    if (!e) return '';
+    e = e.replace(/\\[,;:!]\s*\^/g, '\\,{}^')       // 25\,^\circ needs something to sit on
+         .replace(/(^|[^\\])%/g, '$1\\%');            // a bare % would hide the rest of the formula
+    // align and friends only work on their own line: inside a sentence use their inline twin
+    if (!display) e = e.replace(/\\(begin|end)\{(align|gather|equation)\*?\}/g, (m, w) => `\\${w}{aligned}`);
+    const tries = [
+      e,
+      // words in Bengali, Hindi or Assamese written straight into a formula
+      e.replace(/[^\x00-\x7F°×÷±≤≥≠≈→←↔∞π√αβγδθλμσωΩΔ∑∫∠△°′″·−–]+/g, (m) => `\\text{${m}}`),
+      // unbalanced \left … \right from an answer that lost a bracket
+      e.replace(/\\left\s*/g, '').replace(/\\right\s*/g, ''),
+    ];
+    for (const attempt of tries) {
+      try { return tryKatex(attempt, display); } catch (_) {}
     }
+    return plain;
   }
 
   // ── Helper: extract balanced braces content starting AFTER the opening {
@@ -5049,13 +5072,13 @@ function fmt(t) {
     return str.slice(start, i - 1);
   }
 
-  const blocks = []; // {type:'dmath'|'imath'|'chem'|'chemblock'|'code'|'svg'|'diagram', content:string, lang?:string}
+  const blocks = []; // {type:'dmath'|'imath'|'chem'|'chemblock'|'code'|'icode'|'svg'|'diagram', content:string, lang?:string}
+  t = String(t == null ? '' : t).replace(/\r\n?/g, '\n');
+  const keep = (blk) => { blocks.push(blk); return `%%BLK${blocks.length - 1}%%`; };
 
   // ── Step 0a: Protect SVG diagram blocks FIRST — before anything else touches them
   // Use a more robust extraction: find [SVG: then match until </svg>]
-  t = t.replace(/\[SVG:([\s\S]*?)<\/svg>\s*\]/g, (_, svgBody) => {
-    const idx = blocks.length;
-    const svgContent = (svgBody + '</svg>').trim();
+  const addSvg = (svgContent) => {
     // Pick a friendly label based on what the SVG seems to contain
     let label = '📐 Diagram';
     const sc = svgContent.toLowerCase();
@@ -5064,16 +5087,25 @@ function fmt(t) {
     else if (sc.includes('diamond') || sc.includes('flowchart') || sc.includes('process\n') || sc.includes('start') && sc.includes('end')) label = '🖥️ Flowchart';
     else if (sc.includes('timeline') || sc.includes('century') || sc.includes('event')) label = '📅 Timeline';
     else if (sc.includes('heart') || sc.includes('kidney') || sc.includes('cell') || sc.includes('organ') || sc.includes('ovary') || sc.includes('neuron')) label = '🔬 Diagram';
-    blocks.push({ type: 'svg', content: svgContent, label });
-    return `%%BLK${idx}%%`;
+    return keep({ type: 'svg', content: svgContent, label });
+  };
+  // an SVG the AI wrapped in a code block is still a drawing
+  t = t.replace(/```[\w-]*\s*(?:\[SVG:\s*)?(<svg[\s\S]*?<\/svg>)\s*\]?\s*```/gi, (_, svg) => addSvg(svg.trim()));
+  t = t.replace(/\[SVG:\s*(<svg[\s\S]*?<\/svg>)\s*\]?/gi, (_, svg) => addSvg(svg.trim()));
+  t = t.replace(/<svg[\s>][\s\S]*?<\/svg>/gi, (svg) => addSvg(svg.trim()));
+  // an answer that stopped inside a drawing: keep every finished shape
+  t = t.replace(/(?:\[SVG:\s*)?(<svg[\s>][\s\S]*)$/i, (_, svg) => {
+    const end = svg.lastIndexOf('>');
+    return end < 0 ? '' : addSvg(svg.slice(0, end + 1) + '</svg>');
   });
+  t = t.replace(/\[SVG:\s*$/i, '');
 
   // ── Step 0b: Protect fenced code blocks ```lang ... ```
-  t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    const idx = blocks.length;
-    blocks.push({ type: 'code', content: code.trim(), lang: lang || '' });
-    return `%%BLK${idx}%%`;
-  });
+  t = t.replace(/```([\w+-]*)[ \t]*\n?([\s\S]*?)(?:```|$)/g, (_, lang, code) => keep({ type: 'code', content: code.trim(), lang: lang || '' }));
+  t = t.replace(/`([^`\n]+)`/g, (_, code) => keep({ type: 'icode', content: code }));
+  t = t.replace(/\\\$/g, '%%DOLLAR%%');   // a written dollar sign, not maths
+  // a price like $12 is money, unless maths follows it, as in $2 + 3$ or $5 \\times 2$
+  t = t.replace(/\$(?=\d[\d,]*(?:\.\d+)?(?:[\s.,;:!?)]|$)(?!\d*[\d,.]*\s*[\\=+\-*/^<>×÷·≤≥≈]))/gm, '%%DOLLAR%%');
 
   // ── Step 1: Protect $$ ... $$ display math (may contain \ce{} — KaTeX handles it natively)
   t = t.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => {
@@ -5108,6 +5140,9 @@ function fmt(t) {
     return `%%BLK${idx}%%`;
   });
 
+  // ── Step 4b: Equation environments written without any maths marker
+  t = t.replace(/\\begin\{([a-zA-Z]+\*?)\}[\s\S]*?\\end\{\1\}/g, (m) => keep({ type: 'dmath', content: m.trim() }));
+
   // ── Step 5: Detect bare LaTeX math lines NOT yet protected
   // Only match lines whose FIRST non-space character is a backslash (pure LaTeX command lines)
   const bareMathLine = /^\\(frac|sqrt|sum|int|prod|lim|begin|vec|hat|bar|alpha|beta|gamma|delta|theta|lambda|sigma|mu|pi|Delta|nabla|partial|text|mathbf|left|right|pm|mp|cdot|times|div)/;
@@ -5139,6 +5174,36 @@ function fmt(t) {
     return `%%BLK${idx}%%`;
   });
 
+  // ── Step 5b: LaTeX left in a sentence with no maths marker around it
+  t = t.replace(/(\d)\s*\^\s*\{?\\circ\}?/g, '$1°');
+  {
+    const CMD = /\\(?:[dt]?frac|sqrt|text|mathrm|mathbf|vec|hat|bar|overline|underline)(?=[\s[{])/g;
+    let out = '', pos = 0, m;
+    while ((m = CMD.exec(t))) {
+      let end = m.index + m[0].length, args = 0;
+      const need = /frac/.test(m[0]) ? 2 : 1;
+      while (args < need) {
+        while (t[end] === ' ') end++;
+        if (t[end] === '[') { const close = t.indexOf(']', end); if (close < 0) break; end = close + 1; continue; }
+        if (t[end] !== '{') break;
+        end += extractBalanced(t, end + 1).length + 2;
+        args++;
+      }
+      if (args < need || end > t.length) continue;
+      out += t.slice(pos, m.index) + keep({ type: 'imath', content: t.slice(m.index, end) });
+      pos = end; CMD.lastIndex = end;
+    }
+    t = out + t.slice(pos);
+    t = t.replace(/\\(?:times|div|pm|mp|cdot|leq?|geq?|neq?|approx|equiv|propto|infty|rightarrow|leftarrow|Rightarrow|rightleftharpoons|to|circ|angle|triangle|degree|alpha|beta|gamma|delta|Delta|epsilon|theta|lambda|mu|nu|pi|rho|sigma|Sigma|tau|phi|omega|Omega|therefore|because)(?![a-zA-Z])/g,
+      (m) => keep({ type: 'imath', content: m }));
+  }
+
+  // ── Step 7b: Everything left is plain text. Escape it, or "x<y" would swallow
+  // the rest of the sentence as if it were an HTML tag.
+  t = t.replace(/<br\s*\/?>/gi, '\n')
+       .replace(/&(?!#?\w+;)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+       .replace(/&lt;(\/?)(sub|sup)&gt;/gi, '<$1$2>');
+
   // ── Step 8a: Text Diagram blocks [Diagram: ...]
   t = t.replace(/\[Diagram:([\s\S]+?)\]/g, (_, content) => {
     const idx = blocks.length;
@@ -5167,42 +5232,48 @@ function fmt(t) {
   }
 
   // ── Step 8c: Markdown tables → HTML table
-  t = t.replace(/((?:\|.+\|\n?)+)/g, (tableBlock) => {
-    const rows = tableBlock.trim().split('\n').filter(r => r.trim());
-    if (rows.length < 2) return tableBlock;
-    // Check if second row is separator
-    const isSep = row => /^\|[\s\-|:]+\|$/.test(row.trim());
-    let html = '<div class="ans-table-wrap"><table class="ans-table">';
-    rows.forEach((row, ri) => {
-      if (isSep(row)) return;
-      const tag = ri === 0 ? 'th' : 'td';
-      const cells = row.trim().replace(/^\||\|$/g, '').split('|');
-      html += '<tr>' + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
-    });
-    html += '</table></div>';
-    return html;
-  });
+  {
+    const isSep = (row) => /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(row) && row.includes('-') && row.includes('|');
+    const cellsOf = (row) => row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+    const rows = t.split('\n'), out = [];
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].includes('|') && i + 1 < rows.length && isSep(rows[i + 1])) {
+        const head = cellsOf(rows[i]);
+        let html = '<div class="ans-table-wrap"><table class="ans-table"><tr>' + head.map(c => `<th>${c}</th>`).join('') + '</tr>';
+        i += 2;
+        for (; i < rows.length && rows[i].includes('|') && rows[i].trim(); i++) {
+          if (isSep(rows[i])) continue;
+          const c = cellsOf(rows[i]);
+          while (c.length < head.length) c.push('');
+          html += '<tr>' + c.map(x => `<td>${x}</td>`).join('') + '</tr>';
+        }
+        i--;
+        out.push(html + '</table></div>');
+      } else out.push(rows[i]);
+    }
+    t = out.join('\n');
+  }
 
   // ── Step 9: Standard markdown formatting
   // Normalize \r\n and \r line endings first
-  t = t.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   t = t
+    .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '<hr class="ans-hr"/>')
     // Bullets FIRST — before italic * replacement consumes the asterisks
     // Match lines starting with optional spaces then - * or • (handles indented bullets too)
     .replace(/^[ \t]*[-*•]\s+(.+)$/gm, '<div class="ans-bullet"><span>▸</span><span>$1</span></div>')
-    .replace(/^### (.+)$/gm, '<div class="ans-h3">$1</div>')
-    .replace(/^## (.+)$/gm,  '<div class="ans-h2">$1</div>')
-    .replace(/^# (.+)$/gm,   '<div class="ans-h1">$1</div>')
+    .replace(/^#{3,6}\s+(.+)$/gm, '<div class="ans-h3">$1</div>')
+    .replace(/^##\s+(.+)$/gm,  '<div class="ans-h2">$1</div>')
+    .replace(/^#\s+(.+)$/gm,   '<div class="ans-h1">$1</div>')
     // Style "Answer:" label the AI outputs
     .replace(/\*\*Answer:\*\*/g, '<strong style="color:var(--accent2)">Answer:</strong>')
     .replace(/^Answer:\s/gm, '<strong style="color:var(--accent2)">Answer:</strong> ')
     // Numbered list items → styled step with circle number
-    .replace(/^(\d+)\.\s+(.+)$/gm, (_, num, text) =>
+    .replace(/^[ \t]*(\d+)[.)]\s+(.+)$/gm, (_, num, text) =>
       `<div class="ans-step"><span class="ans-num">${num}</span><span>${text}</span></div>`)
     .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g,     '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,         '<em>$1</em>')
-    .replace(/`(.*?)`/g,           '<code class="ans-inline-code">$1</code>')
+    // italics only hug their words, so "2 * 3 * 4" stays as written
+    .replace(/(^|[^*\w])\*(?=\S)([^*\n]*?\S)\*(?![*\w])/gm, '$1<em>$2</em>')
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g,   '<br/>');
 
@@ -5221,6 +5292,7 @@ function fmt(t) {
     if (blk.type === 'diagram') {
       return `<div class="ans-diagram"><div class="ans-diagram-label">📊 DIAGRAM</div><div class="ans-diagram-text">${blk.content}</div></div>`;
     }
+    if (blk.type === 'icode') return `<code class="ans-inline-code">${escapeHtml(blk.content)}</code>`;
     if (blk.type === 'dmath') {
       const rendered = renderKatex(blk.content, true);
       return `<div class="ans-formula">${rendered}</div>`;
@@ -5229,20 +5301,20 @@ function fmt(t) {
       return renderKatex(blk.content, false);
     }
     if (blk.type === 'chemblock') {
-      if (typeof katex === 'undefined') return `<div class="ans-chem"><div class="ans-chem-label">⚗️ Chemical Equation</div><code>${blk.content}</code></div>`;
+      if (typeof katex === 'undefined') return `<div class="ans-chem"><div class="ans-chem-label">⚗️ Chemical Equation</div><code>${escapeHtml(blk.content)}</code></div>`;
       try {
         const rendered = katex.renderToString(`\\ce{${blk.content}}`, { displayMode: false, throwOnError: false, strict: false });
         return `<div class="ans-chem"><div class="ans-chem-label">⚗️ Chemical Equation</div>${rendered}</div>`;
       } catch(e) {
-        return `<div class="ans-chem"><div class="ans-chem-label">⚗️ Chemical Equation</div><code>${blk.content}</code></div>`;
+        return `<div class="ans-chem"><div class="ans-chem-label">⚗️ Chemical Equation</div><code>${escapeHtml(blk.content)}</code></div>`;
       }
     }
     if (blk.type === 'chem') {
-      if (typeof katex === 'undefined') return `<code>${blk.content}</code>`;
+      if (typeof katex === 'undefined') return `<code>${escapeHtml(blk.content)}</code>`;
       try {
         return katex.renderToString(`\\ce{${blk.content}}`, { displayMode: false, throwOnError: false, strict: false });
       } catch(e) {
-        return `<code>${blk.content}</code>`;
+        return `<code>${escapeHtml(blk.content)}</code>`;
       }
     }
     if (blk.type === 'code') {
@@ -5251,6 +5323,8 @@ function fmt(t) {
     }
     return '';
   });
+
+  t = t.replace(/%%DOLLAR%%/g, '$');
 
   // ── Step 11: Restore Key Takeaway wrappers
   t = t.replace(/%%TAKEAWAY_START%%([\s\S]*?)%%TAKEAWAY_END%%/g, (_, inner) => {
@@ -5269,33 +5343,57 @@ function escapeHtml(str) {
 // ── Inject SVGs safely after innerHTML is set ──────────────────────────────────
 // The HTML parser mangles SVG when set via innerHTML; instead we store the raw SVG
 // in a data attribute, then replace placeholder divs with real SVG DOM nodes.
+// Reads an AI-made SVG, forgiving the mistakes that stop strict parsers (a bare &,
+// a missing namespace, tags left open) and removing anything that could run code.
+function parseSvg(raw) {
+  let src = String(raw).trim().replace(/\\n/g, ' ').replace(/\\"/g, '"');
+  if (!/xmlns=/.test(src)) src = src.replace(/<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  src = src.replace(/&(?!#?\w+;)/g, '&amp;');
+  let svg = null;
+  try {
+    const doc = new DOMParser().parseFromString(src, 'image/svg+xml');
+    if (!doc.querySelector('parsererror')) svg = doc.documentElement;
+  } catch (_) {}
+  if (!svg) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = src;                       // the HTML parser closes whatever was left open
+    svg = tpl.content.querySelector('svg');
+  }
+  if (!svg || svg.tagName.toLowerCase() !== 'svg') return null;
+  svg.querySelectorAll('script, foreignObject, iframe, object, embed, image').forEach(n => n.remove());
+  [svg, ...svg.querySelectorAll('*')].forEach(n => {
+    [...n.attributes].forEach(a => {
+      if (/^on/i.test(a.name) || /javascript:/i.test(a.value)) n.removeAttribute(a.name);
+    });
+  });
+  if (!svg.querySelector('path, rect, circle, ellipse, line, polyline, polygon, text')) return null;
+  return svg;
+}
+
 function injectSVGs(container) {
   container.querySelectorAll('.ans-svg-diagram[data-svg]').forEach(wrapper => {
     try {
       const raw = decodeURIComponent(wrapper.getAttribute('data-svg'));
       const placeholder = wrapper.querySelector('.svg-placeholder');
-      // Parse SVG string via DOMParser — preserves namespace correctly
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(raw, 'image/svg+xml');
-      const svgEl = doc.documentElement;
-      // Check for parse error
-      if (svgEl.tagName === 'parsererror' || svgEl.querySelector('parsererror')) {
-        if (placeholder) placeholder.textContent = '⚠️ Diagram could not be rendered.';
+      const svgEl = parseSvg(raw);
+      if (!svgEl) {
+        wrapper.style.display = 'none';   // nothing usable: the written answer still stands
         return;
       }
       // ── Make SVG fully responsive ──
       // Keep viewBox (it defines the coordinate system) but remove fixed pixel dimensions
       // so CSS can scale it freely to fit any screen width
-      const vb = svgEl.getAttribute('viewBox');
-      if (vb) {
-        // Remove hardcoded width/height attrs — let CSS width:100% + height:auto take over
-        svgEl.removeAttribute('width');
-        svgEl.removeAttribute('height');
-        // Preserve aspect ratio
-        svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      if (!svgEl.getAttribute('viewBox')) {
+        const w = parseFloat(svgEl.getAttribute('width')) || 400, h = parseFloat(svgEl.getAttribute('height')) || 300;
+        svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
       }
+      svgEl.removeAttribute('width');
+      svgEl.removeAttribute('height');
+      svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      // a drawing with no background of its own is usually dark lines: give it a white page
+      const hasBackground = !!svgEl.querySelector("rect");
       // Apply responsive styles
-      svgEl.style.cssText = 'display:block; width:100%; height:auto; max-width:100%; overflow:visible; border-radius:6px;';
+      svgEl.style.cssText = 'display:block; width:100%; height:auto; max-width:100%; overflow:visible; border-radius:6px;' + (hasBackground ? '' : ' background:#fff;');
       // Replace placeholder with real SVG node
       if (placeholder) {
         placeholder.innerHTML = '';
@@ -5303,8 +5401,7 @@ function injectSVGs(container) {
         placeholder.appendChild(svgEl);
       }
     } catch(e) {
-      const placeholder = wrapper.querySelector('.svg-placeholder');
-      if (placeholder) placeholder.textContent = '⚠️ Diagram rendering failed.';
+      wrapper.style.display = 'none';
     }
     // Remove data-svg so we don't re-process on re-render
     wrapper.removeAttribute('data-svg');
