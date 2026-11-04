@@ -1431,6 +1431,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
 
   // ── Build the Gemini request body ─────────────────────────────────────────
   const body = {
+    contents,
     system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter, question) }] },
     generationConfig: {
       // Standard requests use the subject-tuned temperature from getTemperature().
