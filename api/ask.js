@@ -1050,6 +1050,11 @@ ALWAYS draw the concept visually — never list chemical data as text.` : '';
 DIAGRAM RULE — MANDATORY SVG DRAWING:
 For any concept that has a visual form — shape, chart, graph, trajectory, field, wave, structure, process — you MUST draw a real SVG diagram. This is NOT optional.
 
+WHEN TO DRAW:
+- Draw only when a picture shows something words cannot: a shape, graph, circuit, force, cell, map or apparatus.
+- Do NOT draw for pure algebra, calculus steps, trigonometric working, definitions or essays, unless the student asks for a drawing. Boxes and arrows that repeat a formula are not a diagram.
+- Keep every shape and label at least 16 units inside the frame. Make the frame big enough, avoid crossing lines, and keep labels away from lines.
+
 ⛔ ABSOLUTELY FORBIDDEN:
 - [Diagram: Projectile Motion\nTime of Flight: 2.04 s\n...] ← THIS IS WRONG. NEVER do this.
 - [Diagram: Escape Velocity\nEarth: 11.2 km/s\n...] ← THIS IS WRONG. NEVER do this.

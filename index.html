@@ -5419,6 +5419,7 @@ function injectSVGs(container) {
         placeholder.innerHTML = '';
         placeholder.classList.remove('svg-placeholder');
         placeholder.appendChild(svgEl);
+        requestAnimationFrame(() => fitSvg(svgEl));
       }
     } catch(e) {
       wrapper.style.display = 'none';
