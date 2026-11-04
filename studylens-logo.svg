@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="StudyLens AI">
+  <defs>
+    <linearGradient id="t" x1="40" y1="20" x2="470" y2="500" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6d3bf5"/><stop offset=".58" stop-color="#3f5ff2"/><stop offset="1" stop-color="#16b8e8"/></linearGradient>
+    <linearGradient id="r" x1="120" y1="90" x2="360" y2="350" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#d9e4ff"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#t)"/>
+  <circle cx="232" cy="226" r="134" fill="#fff" fill-opacity=".12"/>
+  <circle cx="232" cy="226" r="134" fill="none" stroke="url(#r)" stroke-width="38"/>
+  <path d="M332 326 412 406" stroke="#fff" stroke-width="50" stroke-linecap="round"/>
+  <path d="M232 192c-26-22-58-30-92-28v118c34-2 66 6 92 28 26-22 58-30 92-28V164c-34-2-66 6-92 28z" fill="#fff"/>
+  <path d="M232 196v112" stroke="#4a55f0" stroke-width="10" stroke-linecap="round"/>
+  <path d="M398 62c5 30 16 41 46 46-30 5-41 16-46 46-5-30-16-41-46-46 30-5 41-16 46-46z" fill="#7ff3e6"/>
+</svg>
