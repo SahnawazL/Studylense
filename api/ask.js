@@ -95,7 +95,14 @@ const groqModelFor = (senior, attempt) => (attempt === 0
 // The limit covers thinking + answer, and stays low enough that prompt + limit
 // fit the free tier's tokens-per-minute cap (a request over it is refused outright).
 const groqOptions = (maxOut) => ({ max_completion_tokens: maxOut, reasoning_effort: 'low', include_reasoning: false });
-const GROQ_ANSWER_TOKENS = 3000;
+// Room for the answer: whatever the free tier's 8,000 tokens-a-minute leaves after
+// the prompt (about 3.3 characters a token). A reply that still runs out of room
+// is carried on by continueAnswer(), so diagrams and long solutions always finish.
+function groqAnswerRoom(messages) {
+  const chars = messages.reduce((n, m) => n + String(m.content || '').length, 0);
+  return Math.max(1500, Math.min(6000, 7700 - Math.ceil(chars / 3.3)));
+}
+const CONTINUE_PROMPT = 'Your last reply was cut off. Continue from the exact next character, with no greeting and no repeated text. If you were inside an SVG, finish it, close it with </svg>] and then finish the answer.';
 const GROQ_URL          = 'https://api.groq.com/openai/v1/chat/completions';
 
 function isSeniorClass(className) {
@@ -455,7 +462,7 @@ async function streamGroq(keys, ctx, onChunk) {
     history = [], subjectType = 'general', chapter = '',
   } = ctx;
 
-  const sysPrompt  = systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter);
+  const sysPrompt  = systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter, question);
   const senior     = isSeniorClass(className);
   const rot        = senior ? rotations.groqSenior : rotations.groqJunior;
   const temp       = getTemperature(subjectType);
@@ -479,7 +486,7 @@ async function streamGroq(keys, ctx, onChunk) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body:    JSON.stringify({
           model, messages,
-          temperature: temp, top_p: 0.92, ...groqOptions(GROQ_ANSWER_TOKENS),
+          temperature: temp, top_p: 0.92, ...groqOptions(groqAnswerRoom(messages)),
           stream: true,
         }),
       });
@@ -500,6 +507,7 @@ async function streamGroq(keys, ctx, onChunk) {
       const decoder = new TextDecoder();
       let fullText  = '';
       let buf       = '';
+      let cut       = false;
 
       outer: while (true) {
         const { done, value } = await reader.read();
@@ -524,11 +532,12 @@ async function streamGroq(keys, ctx, onChunk) {
             }
             const text = parsed.choices?.[0]?.delta?.content || '';
             if (text) { fullText += text; onChunk(text); }
+            if (parsed.choices?.[0]?.finish_reason === 'length') cut = true;
           } catch (_) {}
         }
       }
 
-      if (fullText) return { success: true, fullText };
+      if (fullText) return { success: true, fullText, cut };
 
     } catch (_) { /* network error — try next key */ }
   }
@@ -567,7 +576,7 @@ async function streamGemini(keys, ctx, onChunk) {
   }
 
   const body = {
-    system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter) }] },
+    system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter, question) }] },
     generationConfig: {
       temperature:     temp,
       topK:            useThinking ? undefined : 40,
@@ -648,6 +657,28 @@ async function streamGemini(keys, ctx, onChunk) {
 // Called when the frontend sends ?stream=1 with mode=text.
 // Sets SSE headers, handles cache, routes to Groq/Gemini (same logic as the
 // non-streaming text path), streams tokens, then finalises cache + Firestore.
+// A reply that ran out of room carries on where it stopped, up to twice, so a
+// student never gets half a solution or half a diagram.
+async function continueAnswer(groqKeys, geminiKeys, ctx, soFar, onChunk) {
+  let added = '';
+  for (let round = 0; round < 2; round++) {
+    const next = {
+      ...ctx,
+      question: CONTINUE_PROMPT,
+      history: [
+        { role: 'user', content: ctx.question || '' },
+        { role: 'assistant', content: (soFar + added).slice(-6000) },
+        { role: 'user', content: CONTINUE_PROMPT },
+      ],
+    };
+    const r = geminiKeys.length > 0 ? await streamGemini(geminiKeys, next, onChunk) : await streamGroq(groqKeys, next, onChunk);
+    if (!r.success) break;
+    added += r.fullText;
+    if (!r.cut) break;
+  }
+  return added;
+}
+
 async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
   const {
     question, subject, lang, board, simplify = false,
@@ -690,7 +721,10 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
 
   if (!success && groqKeys.length > 0) {
     const result = await streamGroq(groqKeys, ctx, onChunk);
-    if (result.success) { fullText = result.fullText; success = true; }
+    if (result.success) {
+      fullText = result.fullText; success = true;
+      if (result.cut) fullText += await continueAnswer(groqKeys, geminiKeys, ctx, fullText, onChunk);
+    }
   }
 
   if (!success && geminiKeys.length > 0 && !geminiFirst) {
@@ -915,7 +949,10 @@ function needsSearchGrounding(subjectType, subject) {
 }
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-function systemPrompt(className, subject, lang, board = '', stream = '', mode = 'text', simplify = false, chapter = '') {
+// Words that mean the student wants something drawn, in any of the app's languages
+const DRAW_WORDS = /\b(draw|drawing|sketch|diagram|graph|plot|chart|map|labelled|labeled|figure|flow ?chart)\b|আঁক|অঙ্কন|চিত্র|ছবি|চিত্ৰ|चित्र|आरेख|बनाइए|बनाओ/i;
+
+function systemPrompt(className, subject, lang, board = '', stream = '', mode = 'text', simplify = false, chapter = '', question = '') {
   const langMap = { en: 'English', bn: 'Bengali (Bangla)', hi: 'Hindi', as: 'Assamese' };
   const replyLang = langMap[lang] || 'English';
 
@@ -984,7 +1021,8 @@ CRITICAL: SVGs MUST contain actual shapes (rect, circle, path, line, ellipse, po
   const isGeo      = subj.includes('geograph') || subj.includes('map') || subj.includes('evs');
   const isSocial   = subj.includes('social') || subj.includes('history') || subj.includes('civics');
   const isComputer = subj.includes('computer') || subj.includes('ict');
-  const needsDiagram = isScience || isArt || isGeo || isSocial || isComputer;
+  const wantsDrawing = DRAW_WORDS.test(String(question || ''));
+  const needsDiagram = isScience || isArt || isGeo || isSocial || isComputer || wantsDrawing;
 
   const physicsSvgGuide = isPhysics ? `
 Physics SVG Examples — draw these whenever the topic matches:
@@ -1164,6 +1202,15 @@ CHEMISTRY NOTATION RULE (when applicable):
 Always use mhchem for all chemical formulas and equations:
 - \\ce{H2SO4}, \\ce{CaCO3}, \\ce{2H2 + O2 -> 2H2O}
 
+OUTPUT FORMAT (the app displays your text, so follow this exactly):
+- Inline maths in $...$ and display maths in $$...$$. Do not use any other maths markers.
+- Never put the answer inside a code block. Use code blocks only for computer programs.
+- No HTML tags. The only exception is the SVG format given above.
+- Tables in Markdown with a | --- | line under the header.
+- Keep each SVG compact (under 45 lines), and always end it with </svg>]
+- Always finish the whole answer. Never stop halfway through a solution or a diagram.
+${wantsDrawing && !isPhotoMode ? `- The student asked for a drawing: draw it with real SVG shapes and label it. For a young student asking how to draw something, use big simple shapes, then give short numbered steps.` : ''}
+
 ANSWERING STYLE:
 - Use simple words a school student understands.
 - For math/science: show ALL working steps. NEVER skip a step.
@@ -1202,7 +1249,7 @@ function photoInstruction(lang) {
 // (follow-up questions), we build a proper multi-turn messages array instead
 // of a single user message. This gives the AI full context of the conversation.
 async function askGroq(keys, { question, className, subject, lang, board, stream, mode, simplify, history = [], subjectType = 'general', chapter = '' }) {
-  const sysPrompt = systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter);
+  const sysPrompt = systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter, question);
   let lastErr = null;
 
   const senior = isSeniorClass(className);
@@ -1241,7 +1288,7 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
           messages,
           temperature:    temp,
           top_p:          0.92,
-          ...groqOptions(GROQ_ANSWER_TOKENS),
+          ...groqOptions(groqAnswerRoom(messages)),
         }),
       });
 
@@ -1383,7 +1430,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
 
   // ── Build the Gemini request body ─────────────────────────────────────────
   const body = {
-    system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter) }] },
+    system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter, question) }] },
     generationConfig: {
       // Standard requests use the subject-tuned temperature from getTemperature().
       temperature:      temp,
