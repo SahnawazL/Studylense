@@ -25,6 +25,8 @@ const S = {
  svg_amp: '[SVG:<svg viewBox="0 0 200 100"><rect width="200" height="100" fill="#1a1f30"/><text x="10" y="50" fill="#fff">Force & Motion</text><line x1="0" y1="0" x2="100" y2="90" stroke="#fff"/></svg>]',
  svg_fenced: 'Here:\n```svg\n<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="black" fill="none"/></svg>\n```\nDone.',
  svg_raw: 'Look: <svg width="120" height="80"><rect x="5" y="5" width="50" height="50" stroke="red" fill="none"/></svg> ok',
+ svg_wide: '[SVG:<svg viewBox="0 0 300 200"><rect width="300" height="200" fill="#1a1f30"/><rect x="260" y="80" width="110" height="40" stroke="#fc0" fill="none"/><text x="275" y="105" fill="#fff">f prime</text></svg>]',
+ svg_latex_labels: '[SVG:<svg viewBox="0 0 400 300"><rect width="400" height="300" fill="#1a1f30"/><text x="60" y="180" fill="#fbbf24" text-anchor="start">$v_0 = 20 \\text{ m/s}$</text><text x="50" y="200" fill="#fff">$\\theta = 30^\\circ$</text><text x="190" y="240" fill="#fff">Range $R \\approx 35 \\text{ m}$</text><text x="10" y="20" fill="#fff">end</text></svg>]',
  svg_cut: 'Before.\n[SVG:<svg viewBox="0 0 100 100"><g><circle cx="50" cy="50" r="30" fill="red"/><line x1="0" y1="0" x2="10"',
  svg_nasty: '[SVG:<svg viewBox="0 0 50 50" onload="alert(1)"><script>alert(2)</script><circle cx="9" cy="9" r="5"/></svg>]',
  kids_drawing: '## How to draw a mango 🥭\n1. Draw a big oval\n2. Add a small stem\n[SVG:<svg viewBox="0 0 300 220"><ellipse cx="150" cy="120" rx="80" ry="60" fill="#ffc107"/><path d="M150 60 q5 -30 25 -35" stroke="green" fill="none" stroke-width="4"/><text x="110" y="205" font-size="13">Step 1 mango</text></svg>]\nGood job! 🎉',
@@ -58,6 +60,8 @@ for (const [name, text] of Object.entries(S)) {
     if (box.querySelector('.svg-placeholder')) issues.push('svg stuck');
     if (box.querySelector('script') || box.querySelector('[onload]')) issues.push('unsafe svg');
     if (box.scrollWidth > box.clientWidth + 1) { const w = [...box.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > box.getBoundingClientRect().right + 2 && !e.closest('.ans-formula,.ans-table-wrap,.ans-svg-wrap,.ans-code-block'))[0]; if (w) issues.push('overflow: ' + w.className); }
+    box.querySelectorAll('svg text').forEach(x => { if (/[$\\]/.test(x.textContent)) issues.push('LaTeX in drawing: ' + x.textContent); });
+    if (/Flowchart/.test(box.textContent) && !/flow/i.test(text)) issues.push('wrong title');
     return { issues, svgs: box.querySelectorAll('svg').length, math: box.querySelectorAll('.katex').length, tables: box.querySelectorAll('table').length, text: visible.replace(/\s+/g, ' ').slice(0, 90) };
   }, [text]);
   if (r.issues.length) bad++;

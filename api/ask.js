@@ -253,7 +253,7 @@ function makeCacheKey(question, subject, className, lang, board) {
   const l = (lang      || 'en').trim();
   const b = (board     || '').toLowerCase().trim();
   // board included so ASSEB/CBSE/ICSE never share a cached answer even for the same question
-  return `cache:${b}|${c}|${s}|${l}|${q}`;
+  return `cache:v2:${b}|${c}|${s}|${l}|${q}`;
 }
 
 function memCacheGet(key) {
@@ -1050,6 +1050,13 @@ ALWAYS draw the concept visually — never list chemical data as text.` : '';
 DIAGRAM RULE — MANDATORY SVG DRAWING:
 For any concept that has a visual form — shape, chart, graph, trajectory, field, wave, structure, process — you MUST draw a real SVG diagram. This is NOT optional.
 
+WHEN TO DRAW:
+- Draw only when a picture shows something words cannot: a shape, graph, circuit, force, cell, map or apparatus.
+- Do NOT draw for pure algebra, calculus steps, trigonometric working, definitions or essays, unless the student asks for a drawing. Boxes and arrows that repeat a formula are not a diagram.
+- Inside SVG <text>, never write LaTeX, $ or backslashes. Use plain symbols: v₀ = 20 m/s, θ = 30°, R ≈ 35 m.
+- Give each label its own clear space: no label may touch another label, a line or an arrow.
+- Keep every shape and label at least 16 units inside the frame. Make the frame big enough, avoid crossing lines, and keep labels away from lines.
+
 ⛔ ABSOLUTELY FORBIDDEN:
 - [Diagram: Projectile Motion\nTime of Flight: 2.04 s\n...] ← THIS IS WRONG. NEVER do this.
 - [Diagram: Escape Velocity\nEarth: 11.2 km/s\n...] ← THIS IS WRONG. NEVER do this.
@@ -1431,6 +1438,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
 
   // ── Build the Gemini request body ─────────────────────────────────────────
   const body = {
+    contents,
     system_instruction: { parts: [{ text: systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter, question) }] },
     generationConfig: {
       // Standard requests use the subject-tuned temperature from getTemperature().
