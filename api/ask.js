@@ -253,7 +253,7 @@ function makeCacheKey(question, subject, className, lang, board) {
   const l = (lang      || 'en').trim();
   const b = (board     || '').toLowerCase().trim();
   // board included so ASSEB/CBSE/ICSE never share a cached answer even for the same question
-  return `cache:${b}|${c}|${s}|${l}|${q}`;
+  return `cache:v2:${b}|${c}|${s}|${l}|${q}`;
 }
 
 function memCacheGet(key) {
