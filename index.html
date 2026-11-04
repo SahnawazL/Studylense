@@ -4313,7 +4313,7 @@ function typeText(el, text, payload, imageDataUrl) {
     .replace(/\$\$([\s\S]+?)\$\$/g, '…')
     .replace(/\\\[([\s\S]+?)\\\]/g, '…')
     .replace(/\$([^\$\n]{1,400}?)\$/g, '…')
-    .replace(/\\\(([^)]{1,400}?)\\\)/g, '…')
+    .replace(/\\\(([\s\S]{1,400}?)\\\)/g, '…')
     .replace(/\\ce\{[^}]*\}/g, '…')
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
@@ -5102,7 +5102,7 @@ function fmt(t) {
   });
 
   // ── Step 4: Protect \( ... \) inline math
-  t = t.replace(/\\\(([^)]{1,400}?)\\\)/g, (_, math) => {
+  t = t.replace(/\\\(([\s\S]{1,400}?)\\\)/g, (_, math) => {
     const idx = blocks.length;
     blocks.push({ type: 'imath', content: math.trim() });
     return `%%BLK${idx}%%`;
@@ -5123,6 +5123,7 @@ function fmt(t) {
     return line;
   });
   t = processedLines.join('\n');
+  t = t.replace(/^\s*>\s?/gm, '');   // quote markers from the AI: keep the words, not the marker
 
   // ── Step 6: Standalone \ce{...} on its own line → chemistry block
   t = t.replace(/^[ \t]*\\ce\{((?:[^{}]|\{[^{}]*\})*)\}[ \t]*$/gm, (_, ce) => {
@@ -5355,7 +5356,7 @@ function stripForQuiz(text) {
   // Remove inline math $...$
   t = t.replace(/\$[^$\n]{1,200}?\$/g, '[math]');
   // Remove \(...\) inline math
-  t = t.replace(/\\\([^)]{1,200}?\\\)/g, '[math]');
+  t = t.replace(/\\\([\s\S]{1,200}?\\\)/g, '[math]');
   // Remove \ce{...} chemistry notation
   t = t.replace(/\\ce\{[^}]*\}/g, '[formula]');
   // Remove other LaTeX commands with braces

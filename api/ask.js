@@ -5,8 +5,8 @@
  * ╔══════════════════════════════════════════════════════════════╗
  * ║  SMART DUAL-MODEL GROQ STRATEGY                              ║
  * ║                                                              ║
- * ║  Class 1–10  → llama-3.1-8b-instant  (14,400 req/day)      ║
- * ║  Class 11–12 → llama-3.3-70b-versatile (1,000 req/day)     ║
+ * ║  Class 1–10  → openai/gpt-oss-20b                           ║
+ * ║  Class 11–12 → openai/gpt-oss-120b                          ║
  * ║    Supports: GROQ_KEY_1 … GROQ_KEY_9 (separate rotations)  ║
  * ║                                                              ║
  * ║  PHOTO questions → GEMINI (gemini-2.5-flash)                ║
@@ -84,8 +84,18 @@ export const config = {
 };
 
 // ── Models ────────────────────────────────────────────────────────────────────
-const GROQ_MODEL_SENIOR = 'llama-3.3-70b-versatile';
-const GROQ_MODEL_JUNIOR = 'llama-3.1-8b-instant';
+// Groq shut down the Llama 3.1 / 3.3 models on 16 Aug 2026. Each class group
+// has a main model and a backup, tried in order if one is busy or retired.
+const GROQ_MODEL_SENIOR = 'openai/gpt-oss-120b';
+const GROQ_MODEL_JUNIOR = 'openai/gpt-oss-20b';
+const groqModelFor = (senior, attempt) => (attempt === 0
+  ? (senior ? GROQ_MODEL_SENIOR : GROQ_MODEL_JUNIOR)
+  : (senior ? GROQ_MODEL_JUNIOR : GROQ_MODEL_SENIOR));
+// These models think before answering; the thinking is hidden and kept short.
+// The limit covers thinking + answer, and stays low enough that prompt + limit
+// fit the free tier's tokens-per-minute cap (a request over it is refused outright).
+const groqOptions = (maxOut) => ({ max_completion_tokens: maxOut, reasoning_effort: 'low', include_reasoning: false });
+const GROQ_ANSWER_TOKENS = 3000;
 const GROQ_URL          = 'https://api.groq.com/openai/v1/chat/completions';
 
 function isSeniorClass(className) {
@@ -447,7 +457,6 @@ async function streamGroq(keys, ctx, onChunk) {
 
   const sysPrompt  = systemPrompt(className, subject, lang, board, streamVal, mode, !!simplify, chapter);
   const senior     = isSeniorClass(className);
-  const model      = senior ? GROQ_MODEL_SENIOR : GROQ_MODEL_JUNIOR;
   const rot        = senior ? rotations.groqSenior : rotations.groqJunior;
   const temp       = getTemperature(subjectType);
 
@@ -459,9 +468,10 @@ async function streamGroq(keys, ctx, onChunk) {
     ? [{ role: 'system', content: sysPrompt }, ...recentHistory]
     : [{ role: 'system', content: sysPrompt }, { role: 'user', content: question.trim() }];
 
-  for (let attempt = 0; attempt < Math.max(keys.length, 1); attempt++) {
+  for (let attempt = 0; attempt < Math.max(keys.length, 2); attempt++) {
     const key = pickKey(keys, rot);
     if (!key) break;
+    const model = groqModelFor(senior, attempt);
 
     try {
       const r = await fetch(GROQ_URL, {
@@ -469,7 +479,7 @@ async function streamGroq(keys, ctx, onChunk) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body:    JSON.stringify({
           model, messages,
-          temperature: temp, max_tokens: 8192, top_p: 0.92,
+          temperature: temp, top_p: 0.92, ...groqOptions(GROQ_ANSWER_TOKENS),
           stream: true,
         }),
       });
@@ -477,6 +487,7 @@ async function streamGroq(keys, ctx, onChunk) {
       if (!r.ok) {
         let errData = {};
         try { errData = await r.json(); } catch (_) {}
+        console.warn('[Groq] ' + model + ' refused (' + r.status + '):', String(errData.error?.message || '').slice(0, 160));
         if (r.status === 429 || (errData.error?.message || '').toLowerCase().includes('rate')) {
           const msg = (errData.error?.message || '').toLowerCase();
           const isDailyLimit = msg.includes('per day') || msg.includes('rpd') || msg.includes('daily');
@@ -1195,7 +1206,6 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
   let lastErr = null;
 
   const senior = isSeniorClass(className);
-  const model  = senior ? GROQ_MODEL_SENIOR : GROQ_MODEL_JUNIOR;
   const rot    = senior ? rotations.groqSenior : rotations.groqJunior;
   const temp   = getTemperature(subjectType);
 
@@ -1214,9 +1224,10 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
     ? [{ role: 'system', content: sysPrompt }, ...recentHistory]
     : [{ role: 'system', content: sysPrompt }, { role: 'user', content: question.trim() }];
 
-  for (let attempt = 0; attempt < Math.max(keys.length, 1); attempt++) {
+  for (let attempt = 0; attempt < Math.max(keys.length, 2); attempt++) {
     const key = pickKey(keys, rot);
     if (!key) { lastErr = 'quota'; break; }
+    const model = groqModelFor(senior, attempt);
 
     try {
       const r = await fetch(GROQ_URL, {
@@ -1229,8 +1240,8 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
           model,
           messages,
           temperature:    temp,
-          max_tokens:     8192,
           top_p:          0.92,
+          ...groqOptions(GROQ_ANSWER_TOKENS),
         }),
       });
 
@@ -1238,6 +1249,7 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
       if (data.error) {
         const msg  = (data.error.message || '').toLowerCase();
         const code = data.error.code || r.status;
+        console.warn('[Groq] ' + model + ' refused (' + r.status + '):', msg.slice(0, 160));
         if (code === 429 || msg.includes('rate') || msg.includes('quota')) {
           // Per-minute limit: key is still valid, just busy right now → try next key but don't exhaust.
           // Per-day limit: key is truly exhausted → mark it and skip for the rest of the day.
@@ -1564,14 +1576,14 @@ No markdown, no code fences, no explanation, no preamble — just the raw JSON a
 // can tailor difficulty rules, wrong-option quality, and exam style per subject.
 async function askQuiz(groqKeys, geminiKeys, { question, className, subject = '', subjectType = 'general', board = '' }) {
   const senior    = isSeniorClass(className);
-  const model     = senior ? GROQ_MODEL_SENIOR : GROQ_MODEL_JUNIOR;
   const rot       = senior ? rotations.groqSenior : rotations.groqJunior;
   const quizSys   = buildQuizSystem(className, subject, subjectType, board);
 
   if (groqKeys.length > 0) {
-    for (let attempt = 0; attempt < Math.max(groqKeys.length, 1); attempt++) {
+    for (let attempt = 0; attempt < Math.max(groqKeys.length, 2); attempt++) {
       const key = pickKey(groqKeys, rot);
       if (!key) break;
+      const model = groqModelFor(senior, attempt);
       try {
         const r = await fetch(GROQ_URL, {
           method: 'POST',
@@ -1582,7 +1594,7 @@ async function askQuiz(groqKeys, geminiKeys, { question, className, subject = ''
               { role: 'system', content: quizSys },
               { role: 'user',   content: question.trim() },
             ],
-            temperature: 0.4, max_tokens: 2048, top_p: 0.9,
+            temperature: 0.4, top_p: 0.9, ...groqOptions(2600),
           }),
         });
         const data = await r.json();
@@ -1634,7 +1646,6 @@ async function askSuggestions(groqKeys, geminiKeys, { question, answer, classNam
   const langMap    = { en: 'English', bn: 'Bengali (Bangla)', hi: 'Hindi', as: 'Assamese' };
   const replyLang  = langMap[lang] || 'English';
   const senior     = isSeniorClass(className);
-  const model      = senior ? GROQ_MODEL_SENIOR : GROQ_MODEL_JUNIOR;
   const rot        = senior ? rotations.groqSenior : rotations.groqJunior;
 
   const prompt = `A student just asked about "${subject || 'General'}" (${className || 'school level'}):
@@ -1654,9 +1665,10 @@ Respond ONLY with a JSON array of exactly 3 strings (no other text):
 
   // Try Groq first
   if (groqKeys.length > 0) {
-    for (let attempt = 0; attempt < Math.max(groqKeys.length, 1); attempt++) {
+    for (let attempt = 0; attempt < Math.max(groqKeys.length, 2); attempt++) {
       const key = pickKey(groqKeys, rot);
       if (!key) break;
+      const model = groqModelFor(senior, attempt);
       try {
         const r = await fetch(GROQ_URL, {
           method: 'POST',
@@ -1667,7 +1679,7 @@ Respond ONLY with a JSON array of exactly 3 strings (no other text):
               { role: 'system', content: SUGGESTIONS_SYSTEM },
               { role: 'user',   content: prompt },
             ],
-            temperature: 0.55, max_tokens: 256, top_p: 0.9,
+            temperature: 0.55, top_p: 0.9, ...groqOptions(700),
           }),
         });
         const data = await r.json();
