@@ -1050,6 +1050,13 @@ ALWAYS draw the concept visually — never list chemical data as text.` : '';
 DIAGRAM RULE — MANDATORY SVG DRAWING:
 For any concept that has a visual form — shape, chart, graph, trajectory, field, wave, structure, process — you MUST draw a real SVG diagram. This is NOT optional.
 
+CHEMICAL STRUCTURES (molecules, organic compounds, structural formulas, isomers):
+- NEVER draw these with SVG. Write the molecule as SMILES on its own line, and the app draws it exactly:
+  [MOL: SMILES | Name]
+- Write every hydrogen as [H] for a molecule with up to 6 non-hydrogen atoms. Larger molecules use normal SMILES.
+- Examples: [MOL: [H]C([H])([H])[H] | Methane]  [MOL: [H]C([H])([H])C([H])([H])O[H] | Ethanol]  [MOL: c1ccccc1 | Benzene]
+- Check the SMILES atom by atom before writing it. Use one [MOL: ...] line per molecule.
+
 WHEN TO DRAW:
 - Draw only when a picture shows something words cannot: a shape, graph, circuit, force, cell, map or apparatus.
 - Do NOT draw for pure algebra, calculus steps, trigonometric working, definitions or essays, unless the student asks for a drawing. Boxes and arrows that repeat a formula are not a diagram.
