@@ -5081,10 +5081,11 @@ function fmt(t) {
   const addSvg = (svgContent) => {
     // Pick a friendly label based on what the SVG seems to contain
     let label = '📐 Diagram';
-    const sc = svgContent.toLowerCase();
-    if (sc.includes('chart') || sc.includes('histogram') || sc.includes('frequency') || sc.includes('polyline') || sc.includes('ogive') || sc.includes('tally')) label = '📊 Chart';
+    // judge by the words students will see, not the drawing's code (which is full of "start", "end" and "polyline")
+    const sc = (svgContent.match(/<text[\s\S]*?<\/text>/gi) || []).join(' ').replace(/<[^>]+>/g, ' ').toLowerCase();
+    if ((sc.includes('chart') && !sc.includes('flow')) || sc.includes('histogram') || sc.includes('frequency') || sc.includes('ogive') || sc.includes('tally')) label = '📊 Chart';
     else if (sc.includes('step ') || sc.includes('drawing') || sc.includes('petal') || sc.includes('mango') || sc.includes('flower') || sc.includes('sketch')) label = '🎨 Drawing';
-    else if (sc.includes('diamond') || sc.includes('flowchart') || sc.includes('process\n') || sc.includes('start') && sc.includes('end')) label = '🖥️ Flowchart';
+    else if (sc.includes('diamond') || sc.includes('flowchart') || (/\bstart\b/.test(sc) && /\b(end|stop)\b/.test(sc))) label = '🖥️ Flowchart';
     else if (sc.includes('timeline') || sc.includes('century') || sc.includes('event')) label = '📅 Timeline';
     else if (sc.includes('heart') || sc.includes('kidney') || sc.includes('cell') || sc.includes('organ') || sc.includes('ovary') || sc.includes('neuron')) label = '🔬 Diagram';
     return keep({ type: 'svg', content: svgContent, label });
@@ -5367,7 +5368,78 @@ function parseSvg(raw) {
     });
   });
   if (!svg.querySelector('path, rect, circle, ellipse, line, polyline, polygon, text')) return null;
+  cleanSvgLabels(svg);
   return svg;
+}
+
+// Drawings can't show LaTeX, so a label like $v_0 = 20 \\text{ m/s}$ is rewritten
+// as real text: symbols as symbols, _ and ^ as small raised or lowered letters.
+const SVG_SYMBOLS = { approx:'≈', times:'×', div:'÷', pm:'±', cdot:'·', leq:'≤', le:'≤', geq:'≥', ge:'≥', neq:'≠', ne:'≠', circ:'°', degree:'°', infty:'∞', to:'→', rightarrow:'→', leftarrow:'←', Rightarrow:'⇒', rightleftharpoons:'⇌', angle:'∠', triangle:'△', perp:'⊥', parallel:'∥', propto:'∝', sum:'Σ', int:'∫', partial:'∂', nabla:'∇', therefore:'∴', because:'∵', sim:'~',
+  alpha:'α', beta:'β', gamma:'γ', delta:'δ', epsilon:'ε', varepsilon:'ε', theta:'θ', lambda:'λ', mu:'μ', nu:'ν', pi:'π', rho:'ρ', sigma:'σ', tau:'τ', phi:'φ', omega:'ω', Gamma:'Γ', Delta:'Δ', Theta:'Θ', Lambda:'Λ', Sigma:'Σ', Phi:'Φ', Omega:'Ω' };
+function plainSvgLabel(x) {
+  let t = String(x).replace(/\\\\(?=[a-zA-Z^,;:! ])/g, '\\').replace(/\\\$/g, '\u0001').replace(/\$/g, '').replace(/\u0001/g, '$');
+  for (let i = 0; i < 4; i++) {
+    t = t.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '($1)/($2)')
+         .replace(/\(([\w.°]+)\)\/\(([\w.°]+)\)/g, '$1/$2')
+         .replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)')
+         .replace(/\\(?:text|mathrm|mathbf|mathit|textbf|operatorname|ce|pu)\s*\{([^{}]*)\}/g, '$1')
+         .replace(/\\(?:vec|overrightarrow)\s*\{([^{}]*)\}/g, '$1\u20D7')
+         .replace(/\\(?:hat|bar|overline)\s*\{([^{}]*)\}/g, '$1');
+  }
+  return t.replace(/\^\s*\{?\s*\\?(?:circ|degree)\s*\}?/g, '°')
+          .replace(/\\[,;:! ]/g, ' ')
+          .replace(/\\(?:left|right)\s*/g, '')
+          .replace(/\\([a-zA-Z]+)/g, (m, w) => SVG_SYMBOLS[w] || w)
+          .replace(/\s+/g, ' ').trim();
+}
+function fillSvgLabel(el, text) {
+  const NS = 'http://www.w3.org/2000/svg';
+  el.textContent = '';
+  const re = /([_^])(?:\{([^{}]*)\}|([^\s_^{}]))/g;
+  let at = 0, m, shift = 0;
+  const put = (str, dy, small) => {
+    if (!str) return;
+    const sp = document.createElementNS(NS, 'tspan');
+    sp.textContent = str;
+    if (dy) sp.setAttribute('dy', dy + 'em');
+    if (small) sp.setAttribute('font-size', '72%');
+    el.appendChild(sp);
+  };
+  while ((m = re.exec(text))) {
+    put(text.slice(at, m.index), shift ? -shift / .72 * .72 : 0, false); shift = 0;
+    const down = m[1] === '_' ? .32 : -.42;
+    put(m[2] != null ? m[2] : m[3], down, true); shift = down;
+    at = re.lastIndex;
+  }
+  const rest = text.slice(at);
+  if (shift) put(rest || '\u200B', -shift * .72, false); else put(rest, 0, false);
+}
+function cleanSvgLabels(svg) {
+  svg.querySelectorAll('text').forEach(el => {
+    if (el.querySelector('tspan[x]')) return;           // laid out by hand over several lines
+    const raw = el.textContent;
+    if (!/[$\\]|[_^][{\w]/.test(raw)) return;
+    fillSvgLabel(el, plainSvgLabel(raw));
+  });
+}
+// Labels that landed on top of each other are moved apart, and every label gets a
+// thin outline in the background colour so it stays readable across a line.
+function tidySvgLabels(svg) {
+  try {
+    const first = svg.querySelector('rect'), page = (first && first.getAttribute('fill')) || svg.style.background || '#fff';
+    const list = [...svg.querySelectorAll('text')].filter(t => !t.getAttribute('transform') && !t.closest('[transform*="rotate"]'));
+    list.concat([...svg.querySelectorAll('text')]).forEach(t => { t.style.paintOrder = 'stroke'; if (/^#|rgb/.test(page)) { t.style.stroke = page; t.style.strokeWidth = '3px'; t.style.strokeLinejoin = 'round'; } });
+    const boxes = list.map(t => ({ t, b: t.getBBox(), dy: 0 })).sort((p, q) => p.b.y - q.b.y);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const a = boxes[j], c = boxes[i], aY = a.b.y + a.dy, cY = c.b.y + c.dy;
+        const across = Math.min(a.b.x + a.b.width, c.b.x + c.b.width) - Math.max(a.b.x, c.b.x);
+        const down = Math.min(aY + a.b.height, cY + c.b.height) - Math.max(aY, cY);
+        if (across > 2 && down > 2) c.dy += down + 2;
+      }
+    }
+    boxes.forEach(({ t, dy }) => { if (dy) t.setAttribute('y', (parseFloat(t.getAttribute('y')) || 0) + dy); });
+  } catch (_) {}
 }
 
 // AI drawings often run past their own frame. Once on screen, the frame grows to
@@ -5419,7 +5491,7 @@ function injectSVGs(container) {
         placeholder.innerHTML = '';
         placeholder.classList.remove('svg-placeholder');
         placeholder.appendChild(svgEl);
-        requestAnimationFrame(() => fitSvg(svgEl));
+        requestAnimationFrame(() => { tidySvgLabels(svgEl); fitSvg(svgEl); });
       }
     } catch(e) {
       wrapper.style.display = 'none';

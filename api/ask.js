@@ -1053,6 +1053,8 @@ For any concept that has a visual form — shape, chart, graph, trajectory, fiel
 WHEN TO DRAW:
 - Draw only when a picture shows something words cannot: a shape, graph, circuit, force, cell, map or apparatus.
 - Do NOT draw for pure algebra, calculus steps, trigonometric working, definitions or essays, unless the student asks for a drawing. Boxes and arrows that repeat a formula are not a diagram.
+- Inside SVG <text>, never write LaTeX, $ or backslashes. Use plain symbols: v₀ = 20 m/s, θ = 30°, R ≈ 35 m.
+- Give each label its own clear space: no label may touch another label, a line or an arrow.
 - Keep every shape and label at least 16 units inside the frame. Make the frame big enough, avoid crossing lines, and keep labels away from lines.
 
 ⛔ ABSOLUTELY FORBIDDEN:
