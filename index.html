@@ -5105,7 +5105,7 @@ function fmt(t) {
   t = t.replace(/`([^`\n]+)`/g, (_, code) => keep({ type: 'icode', content: code }));
   t = t.replace(/\\\$/g, '%%DOLLAR%%');   // a written dollar sign, not maths
   // a price like $12 is money, unless maths follows it, as in $2 + 3$ or $5 \\times 2$
-  t = t.replace(/\$(?=\d[\d,]*(?:\.\d+)?(?:[\s.,;:!?)]|$)(?!\d*[\d,.]*\s*[\\=+\-*/^<>]))/gm, '%%DOLLAR%%');
+  t = t.replace(/\$(?=\d[\d,]*(?:\.\d+)?(?:[\s.,;:!?)]|$)(?!\d*[\d,.]*\s*[\\=+\-*/^<>×÷·≤≥≈]))/gm, '%%DOLLAR%%');
 
   // ── Step 1: Protect $$ ... $$ display math (may contain \ce{} — KaTeX handles it natively)
   t = t.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => {
