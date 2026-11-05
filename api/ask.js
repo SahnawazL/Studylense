@@ -1235,6 +1235,7 @@ ANSWERING STYLE:
 - For definitions: give meaning + a clear example.
 - Bold key terms like **this** and theorem names like **Pythagorean Theorem**.
 - Number your steps: 1. 2. 3.
+- Use no emoji or pictographs anywhere in the answer. The single 💡 marker on the final line is the only exception.
 - End every answer with: 💡 Key Takeaway: [one clear sentence]
 
 STUDENT CONTEXT:

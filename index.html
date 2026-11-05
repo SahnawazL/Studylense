@@ -214,11 +214,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .lang-btn { background: none; border: none; color: var(--muted); font-family: var(--font-body); font-size: 0.68rem; font-weight: 600; padding: 0.26rem 0.45rem; border-radius: 100px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
 .lang-btn.active { background: var(--accent); color: #fff; }
 .lang-btn:hover:not(.active) { color: var(--text); background: var(--surface2); }
-.has-answer .lang-btn:not(.active):hover::after {
-  content: ' ↺';
-  font-size: 0.7rem;
-  opacity: 0.7;
-}
 /* ── Language pill + dropdown ── */
 .lang-pill {
   position: relative; flex-shrink: 0;
@@ -981,9 +976,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   color: var(--muted);
   line-height: 1.65;
   font-style: italic;
-}
-.ans-diagram-text::before {
-  content: '🔍 ';
 }
 
 /* SVG Diagram */
@@ -1968,8 +1960,28 @@ body.sl-lock { overflow: hidden; }
 .menu-btn:focus { outline: none; }
 .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .login-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.subj-emoji, .stream-emoji, .login-feature-icon, .hdr-icon, .folder-picker-emoji, .analytics-practise-emoji, .save-banner-icon {
+  display: inline-grid; place-items: center; flex: none; width: 2.05rem; height: 2.05rem; border-radius: 10px; font-size: 1rem; line-height: 1;
+  background: rgba(79,142,247,.13); box-shadow: inset 0 0 0 1px rgba(79,142,247,.16);
+}
+.subj-emoji { font-weight: 700; color: var(--accent); }
+.hist-empty-icon, .analytics-empty-icon { display: grid; place-items: center; width: 4rem; height: 4rem; margin: 0 auto .6rem; border-radius: 18px; font-size: 1.7rem; color: var(--accent); background: rgba(79,142,247,.1); }
+.subj-emoji .ic, .stream-emoji .ic, .login-feature-icon .ic, .hdr-icon .ic, .folder-picker-emoji .ic, .analytics-practise-emoji .ic, .save-banner-icon .ic, .hist-empty-icon .ic, .analytics-empty-icon .ic { width: 1.25em; height: 1.25em; vertical-align: 0; stroke-width: 1.8; }
+.subj-emoji .ic--blue, .stream-emoji .ic--blue, .login-feature-icon .ic--blue, .hdr-icon .ic--blue, .hist-empty-icon .ic--blue, .analytics-empty-icon .ic--blue, .analytics-practise-emoji .ic--blue, .folder-picker-emoji .ic--blue, .save-banner-icon .ic--blue { stroke: url(#ic-blue); }
+.subj-emoji .ic--green, .stream-emoji .ic--green, .login-feature-icon .ic--green, .hdr-icon .ic--green, .hist-empty-icon .ic--green, .analytics-empty-icon .ic--green, .analytics-practise-emoji .ic--green, .folder-picker-emoji .ic--green, .save-banner-icon .ic--green { stroke: url(#ic-green); }
+.subj-emoji .ic--amber, .stream-emoji .ic--amber, .login-feature-icon .ic--amber, .hdr-icon .ic--amber, .hist-empty-icon .ic--amber, .analytics-empty-icon .ic--amber, .analytics-practise-emoji .ic--amber, .folder-picker-emoji .ic--amber, .save-banner-icon .ic--amber { stroke: url(#ic-amber); }
+.subj-emoji .ic--violet, .stream-emoji .ic--violet, .login-feature-icon .ic--violet, .hdr-icon .ic--violet, .hist-empty-icon .ic--violet, .analytics-empty-icon .ic--violet, .analytics-practise-emoji .ic--violet, .folder-picker-emoji .ic--violet, .save-banner-icon .ic--violet { stroke: url(#ic-violet); }
+.subj-emoji .ic--rose, .stream-emoji .ic--rose, .login-feature-icon .ic--rose, .hdr-icon .ic--rose, .hist-empty-icon .ic--rose, .analytics-empty-icon .ic--rose, .analytics-practise-emoji .ic--rose, .folder-picker-emoji .ic--rose, .save-banner-icon .ic--rose { stroke: url(#ic-rose); }
+:is(.subj-emoji, .stream-emoji, .login-feature-icon, .hdr-icon, .folder-picker-emoji, .analytics-practise-emoji, .save-banner-icon):has(.ic--green) { background: rgba(62,207,142,.12); box-shadow: inset 0 0 0 1px rgba(62,207,142,.18); }
+:is(.subj-emoji, .stream-emoji, .login-feature-icon, .hdr-icon, .folder-picker-emoji, .analytics-practise-emoji, .save-banner-icon):has(.ic--amber) { background: rgba(247,201,72,.13); box-shadow: inset 0 0 0 1px rgba(247,201,72,.2); }
+:is(.subj-emoji, .stream-emoji, .login-feature-icon, .hdr-icon, .folder-picker-emoji, .analytics-practise-emoji, .save-banner-icon):has(.ic--violet) { background: rgba(123,94,255,.13); box-shadow: inset 0 0 0 1px rgba(123,94,255,.2); }
+:is(.subj-emoji, .stream-emoji, .login-feature-icon, .hdr-icon, .folder-picker-emoji, .analytics-practise-emoji, .save-banner-icon):has(.ic--rose) { background: rgba(247,79,79,.11); box-shadow: inset 0 0 0 1px rgba(247,79,79,.18); }
+.smart-send-btn .ic, .followup-send .ic { width: 1.25em; height: 1.25em; vertical-align: -.25em; }
+.chk .ic { width: 1em; height: 1em; stroke-width: 3; }
+.sl-licence + .sl-muted { margin-top: .8rem; }
 </style>
 <body>
+<script src="/icons.js"></script>
 
 <!-- ── LOGIN GATE (mandatory — hides until authenticated) ── -->
 <div class="login-gate" id="loginGate">
@@ -2036,10 +2048,10 @@ body.sl-lock { overflow: hidden; }
         <span class="lang-pill-chevron">▼</span>
       </button>
       <div class="lang-dropdown" id="langDropdown">
-        <button class="lang-drop-btn active" id="btn-en" onclick="setLang('en')">🇬🇧 English</button>
-        <button class="lang-drop-btn" id="btn-bn" onclick="setLang('bn')">🇧🇩 বাংলা</button>
-        <button class="lang-drop-btn" id="btn-hi" onclick="setLang('hi')">🇮🇳 हिंदी</button>
-        <button class="lang-drop-btn" id="btn-as" onclick="setLang('as')">🏳️ অসমীয়া</button>
+        <button class="lang-drop-btn active" id="btn-en" onclick="setLang('en')">English</button>
+        <button class="lang-drop-btn" id="btn-bn" onclick="setLang('bn')">বাংলা</button>
+        <button class="lang-drop-btn" id="btn-hi" onclick="setLang('hi')">हिंदी</button>
+        <button class="lang-drop-btn" id="btn-as" onclick="setLang('as')">অসমীয়া</button>
       </div>
     </div>
   </div>
@@ -2257,7 +2269,7 @@ body.sl-lock { overflow: hidden; }
         <!-- photo mode context + send bar (appears after photo is chosen) -->
         <div class="photo-ask-bar" id="photoAskBar" style="display:none;">
           <div class="smart-input-wrap">
-            <textarea class="smart-input photo-ctx-input" id="askInput" rows="1" placeholder="Ask anything about the photo, or just press ➤…"></textarea>
+            <textarea class="smart-input photo-ctx-input" id="askInput" rows="1" placeholder="Ask anything about the photo, or just press Send…"></textarea>
             <button class="mic-btn" id="micBtnPhoto" onclick="toggleMic('photo')" title="Tap to speak">🎤</button>
             <button class="smart-send-btn" id="askBtnPhoto" onclick="askQuestion()">➤</button>
           </div>
@@ -2304,7 +2316,7 @@ body.sl-lock { overflow: hidden; }
     <!-- Bug 8 fix: search bar -->
     <div class="hist-search-wrap" id="histSearchWrap">
       <input type="search" class="hist-search-input" id="histSearchInput"
-        placeholder="🔍 Search questions or subjects…"
+        placeholder="Search questions or subjects…"
         oninput="buildHistList()" autocomplete="off" autocorrect="off" spellcheck="false"/>
     </div>
     <div class="hist-list" id="histList"></div>
@@ -2607,7 +2619,7 @@ function slRenderPage(name) {
   const x = slT(), page = document.getElementById('slPage');
   page.querySelector('h2').textContent = x[name];
   page.querySelector('.sl-back').setAttribute('aria-label', x.back);
-  const body = { about: slAbout, settings: slSettings, privacy: slPrivacy, terms: slTerms, licence: () => `<pre class="sl-licence">${slEsc(SL_LICENCE)}</pre>` }[name]();
+  const body = { about: slAbout, settings: slSettings, privacy: slPrivacy, terms: slTerms, licence: () => `<pre class="sl-licence">${slEsc(SL_LICENCE)}</pre><p class="sl-muted">Icons by Lucide, used under the ISC Licence.</p>` }[name]();
   page.querySelector('.sl-page-in').innerHTML = body;
 }
 
@@ -3780,9 +3792,9 @@ const T = {
     modeTabText:'Type Question',modeTabPhoto:'Add Photo',
     textPlaceholder:'Type your question here…\ne.g. What is photosynthesis? How do I solve 2x + 5 = 11?',
     textHint:'💡 Any theory question, definition, or doubt — no photo needed!',
-    placeholder:'Add more detail, or just press ➤…',
-    placeholderTextMode:'Question ready! Press ➤ to get the answer…',
-    placeholderPhotoMode:'Ask anything about the photo, or just press ➤…',
+    placeholder:'Add more detail, or just press Send…',
+    placeholderTextMode:'Question ready! Press Send to get the answer…',
+    placeholderPhotoMode:'Ask anything about the photo, or just press Send…',
     aiTag:'✓ AI Answer',
     copyLabel:'Copy', speakLabel:'Read Aloud', stopLabel:'Stop', followLabel:'Ask Follow-up',
     followPlaceholder:'Ask something more about this answer…',
@@ -3804,9 +3816,9 @@ const T = {
     modeTabText:'প্রশ্ন লেখো',modeTabPhoto:'ছবি যোগ করো',
     textPlaceholder:'এখানে প্রশ্ন লেখো…\nযেমন: সালোকসংশ্লেষণ কী? এই অঙ্কটা কীভাবে করবো?',
     textHint:'💡 যেকোনো তাত্ত্বিক প্রশ্ন, সংজ্ঞা বা সন্দেহ — ছবি ছাড়াই!',
-    placeholder:'আরও কিছু লেখো, অথবা ➤ চাপো…',
-    placeholderTextMode:'প্রশ্ন প্রস্তুত! উত্তর পেতে ➤ চাপো…',
-    placeholderPhotoMode:'ছবি সম্পর্কে কিছু জিজ্ঞেস করো, অথবা ➤ চাপো…',
+    placeholder:'আরও কিছু লেখো, অথবা পাঠাও চাপো…',
+    placeholderTextMode:'প্রশ্ন প্রস্তুত! উত্তর পেতে পাঠাও চাপো…',
+    placeholderPhotoMode:'ছবি সম্পর্কে কিছু জিজ্ঞেস করো, অথবা পাঠাও চাপো…',
     aiTag:'✓ AI উত্তর',
     copyLabel:'কপি', speakLabel:'পড়ে শোনাও', stopLabel:'থামো', followLabel:'আরও জিজ্ঞেস করো',
     followPlaceholder:'এই উত্তর সম্পর্কে আরও কিছু জিজ্ঞেস করো…',
@@ -3828,9 +3840,9 @@ const T = {
     modeTabText:'सवाल टाइप करो',modeTabPhoto:'फोटो डालो',
     textPlaceholder:'यहाँ सवाल लिखो…\nजैसे: प्रकाश संश्लेषण क्या है? यह समीकरण कैसे हल करें?',
     textHint:'💡 कोई भी थ्योरी सवाल, परिभाषा या शंका — बिना फोटो के!',
-    placeholder:'और कुछ लिखो, या बस ➤ दबाओ…',
-    placeholderTextMode:'सवाल तैयार है! जवाब पाने के लिए ➤ दबाओ…',
-    placeholderPhotoMode:'फोटो के बारे में कुछ पूछो, या बस ➤ दबाओ…',
+    placeholder:'और कुछ लिखो, या बस भेजें दबाओ…',
+    placeholderTextMode:'सवाल तैयार है! जवाब पाने के लिए भेजें दबाओ…',
+    placeholderPhotoMode:'फोटो के बारे में कुछ पूछो, या बस भेजें दबाओ…',
     aiTag:'✓ AI जवाब',
     copyLabel:'कॉपी', speakLabel:'पढ़कर सुनाओ', stopLabel:'रोको', followLabel:'और पूछो',
     followPlaceholder:'इस जवाब के बारे में और कुछ पूछो…',
@@ -3852,9 +3864,9 @@ const T = {
     modeTabText:'প্ৰশ্ন লিখা',modeTabPhoto:'ফটো যোগ কৰা',
     textPlaceholder:'ইয়াত প্ৰশ্ন লিখা…\nযেনে: সালোক-সংশ্লেষণ কি? এই সমীকৰণটো কেনেকৈ সমাধান কৰিম?',
     textHint:'💡 যিকোনো তাত্ত্বিক প্ৰশ্ন, সংজ্ঞা বা সন্দেহ — ফটো নোহোৱাকৈ!',
-    placeholder:'আৰু কিবা লিখা, অথবা ➤ টিপা…',
-    placeholderTextMode:'প্ৰশ্ন প্ৰস্তুত! উত্তৰ পাবলৈ ➤ টিপা…',
-    placeholderPhotoMode:'ফটোৰ বিষয়ে কিবা সুধা, অথবা ➤ টিপা…',
+    placeholder:'আৰু কিবা লিখা, অথবা পঠিয়াওক টিপা…',
+    placeholderTextMode:'প্ৰশ্ন প্ৰস্তুত! উত্তৰ পাবলৈ পঠিয়াওক টিপা…',
+    placeholderPhotoMode:'ফটোৰ বিষয়ে কিবা সুধা, অথবা পঠিয়াওক টিপা…',
     aiTag:'✓ AI উত্তৰ',
     copyLabel:'কপি', speakLabel:'পঢ়ি শুনোৱা', stopLabel:'থমা', followLabel:'আৰু সুধা',
     followPlaceholder:'এই উত্তৰৰ বিষয়ে আৰু কিবা সুধা…',
@@ -4906,7 +4918,7 @@ function copyAnswer() {
   if (!lastAnswerText) return;
   const btn  = document.getElementById('copyBtn');
   const lbl  = document.getElementById('copyLabel');
-  navigator.clipboard.writeText(lastAnswerText).then(() => {
+  navigator.clipboard.writeText(window.stripEmoji ? stripEmoji(lastAnswerText) : lastAnswerText).then(() => {
     btn.classList.add('copied');
     lbl.textContent = 'Copied!';
     setTimeout(() => {
@@ -6355,7 +6367,7 @@ function closeFolderPicker() {
 }
 
 async function createNewFolder() {
-  const name = prompt('📁 Folder name (e.g. "Physics", "Revision"):');
+  const name = prompt('Folder name (e.g. "Physics", "Revision"):');
   if (!name || !name.trim()) return null;
   const emojis = ['📂','🔵','🟣','🟠','🟢','🔴','⭐','🏆','💡','🎯'];
   const emoji   = emojis[Object.keys(bookmarkFolders).length % emojis.length];
