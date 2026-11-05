@@ -525,7 +525,7 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
   .filter-select, .search-input { width: 100%; max-width: 100%; box-sizing: border-box; }
 }
 .nav-count{margin-left:.45rem;min-width:1.2rem;padding:.05rem .3rem;border-radius:9px;background:var(--red);color:#fff;font-size:.6rem;font-weight:700;text-align:center}
-.growth-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin-bottom:1rem}
+.growth-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:.6rem;margin-bottom:1rem}
 .growth-row .card{padding:.8rem}
 .growth-num{font-family:var(--mono);font-size:1.5rem;color:var(--cyan);font-weight:700}
 .danger-zone{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border);font-family:var(--mono);font-size:.68rem;color:var(--muted);line-height:1.6}
@@ -1127,6 +1127,7 @@ async function loadUsers() {
   loading('users-loading','users-content');
   try {
     const data = await api('users');
+    const gone = await api('deletions').then(r=>r.deletions||[]).catch(()=>null);
     const users = data.users||[];
     if(!users.length){ show('users-loading','users-content'); errState('users-content','No users found.'); return; }
     userList = users.sort((a,b)=>(b.historyCount||0)-(a.historyCount||0));
@@ -1143,7 +1144,8 @@ async function loadUsers() {
     document.getElementById('users-content').innerHTML=`
       ${data.accountsProblem ? `<div class="alert-banner">Showing only students who have asked a question. Account list unavailable: ${esc(data.accountsProblem)}</div>` : ''}
       <div class="sec-hdr"><span class="sec-title">${users.length} Users</span><div class="sec-line"></div></div>
-      <div class="card" style="padding:0">${rows}</div>`;
+      <div class="card" style="padding:0">${rows}</div>
+      ${deletionsHTML(gone)}`;
     show('users-loading','users-content');
   } catch(e) {
     document.getElementById('users-loading').style.display='none';
@@ -1207,6 +1209,30 @@ async function deleteStudentData(u) {
   }
 }
 
+// ── DELETED ACCOUNTS ───────────────────────────────
+const LEAVE_LABEL = { not_useful:'Not useful', wrong_answers:'Wrong answers', privacy:'Privacy', other:'Something else' };
+function deletionsHTML(list) {
+  if (!list) return '';
+  const own = list.filter(d=>d.by==='student'), month = own.filter(d=>(d.ts||0)>Date.now()-30*864e5).length;
+  const why = {};
+  own.forEach(d=>{ if(d.reason) why[d.reason]=(why[d.reason]||0)+1; });
+  const reasons = Object.entries(why).sort((a,b)=>b[1]-a[1]);
+  return `
+    <div class="sec-hdr" style="margin-top:1.25rem"><span class="sec-title">Deleted accounts</span><div class="sec-line"></div></div>
+    <div class="growth-row">
+      <div class="card"><div class="card-title">All time</div><div class="growth-num">${own.length}</div></div>
+      <div class="card"><div class="card-title">Last 30 days</div><div class="growth-num">${month}</div></div>
+      <div class="card"><div class="card-title">Removed by you</div><div class="growth-num">${list.length-own.length}</div></div>
+    </div>
+    ${reasons.length?`<div class="card" style="margin-bottom:.8rem"><div class="card-title">Why students left</div>${reasons.map(([k,n])=>`<div class="bar-row"><div class="bar-lbl" style="width:auto;flex:1">${esc(LEAVE_LABEL[k]||k)}</div><div class="bar-num" style="width:auto">${n}</div></div>`).join('')}</div>`:''}
+    ${list.length?`<div class="card" style="padding:0">${list.slice(0,30).map(d=>`<div class="user-row" style="cursor:default">
+      <span class="badge ${d.by==='student'?'badge-photo':'badge-text'}">${d.by==='student'?'Student':'Admin'}</span>
+      <div class="user-id" style="min-width:0">${esc(d.by==='student'?(LEAVE_LABEL[d.reason]||'No reason given'):'Data removed')}<br/><span style="color:var(--muted)">${esc(d.records||0)} records${d.daysAsStudent>=0?` · student for ${esc(d.daysAsStudent)} days`:''}</span></div>
+      <div class="user-seen">${d.ts?esc(new Date(d.ts).toLocaleDateString()):'—'}</div>
+    </div>`).join('')}</div>`:'<div class="status-detail">No accounts deleted yet.</div>'}
+    <p class="status-detail" style="margin-top:.6rem">These records are anonymous: no name, email or user ID is kept.</p>`;
+}
+
 // ── GROWTH ─────────────────────────────────────────
 function growthHTML(g) {
   if (!g) return '';
@@ -1223,6 +1249,7 @@ function growthHTML(g) {
       <div class="card"><div class="card-title">Active today</div><div class="growth-num">${g.activeToday}</div></div>
       <div class="card"><div class="card-title">Active this week</div><div class="growth-num">${g.activeWeek}</div></div>
       <div class="card"><div class="card-title">New this week</div><div class="growth-num">${g.newWeek}</div></div>
+      <div class="card"><div class="card-title">Deleted this week</div><div class="growth-num">${g.deletedWeek||0}</div></div>
     </div>
     <div class="card" style="margin-bottom:1rem"><div class="card-title">New sign-ups, last 30 days</div><div class="daily-chart">${chart('signups')}</div></div>
     <div class="card" style="margin-bottom:1rem"><div class="card-title">Active students, last 30 days</div><div class="daily-chart">${chart('active')}</div></div>`;

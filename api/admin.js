@@ -14,10 +14,12 @@
  *   'health'   daily AI answers, failures, speed and models
  *   'reports'  student reports; 'reportSet' and 'reportDelete' manage them
  *   'deleteStudent'  removes one student's history and reports
+ *   'deletions'  anonymous record of deleted accounts and data
  *   'status'   live system checks
  *   'agentsInfo', 'agentRun', 'agentPause'  the background agents
  *
- * One action is open to any signed-in student: 'report' sends a wrong-answer report.
+ * Two actions are open to any signed-in student: 'report' sends a wrong-answer
+ * report, and 'deleteAccount' permanently removes their own account.
  * GitHub's schedule wakes the agents with a signed ticket (scripts/run-agents.mjs).
  *
  * Needs FIREBASE_SERVICE_ACCOUNT in Vercel.
@@ -31,6 +33,7 @@ export const config = {
 
 const ADMIN_EMAIL = 'balveerdj@gmail.com';
 const FIREBASE_WEB_KEY = 'AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU';   // public by design: identifies the project
+const LEAVE_REASONS = ['not_useful', 'wrong_answers', 'privacy', 'other'], FRESH_SIGN_IN_SECONDS = 600;
 const REPORT_REASONS = ['wrong', 'diagram', 'format', 'other'];
 const SCAN_PAGE = 1000, SCAN_MAX = 5000, SCAN_CACHE_MS = 60_000;
 const HISTORY_FIELDS = ['id', 'ts', 'mode', 'question', 'subject', 'className'];
@@ -311,6 +314,36 @@ async function saveReport(user, body) {
   }) });
 }
 
+// ── Anonymous record of deletions: never a name, email or user ID ──
+async function recordDeletion(by, records, joined, reason) {
+  const ts = Date.now();
+  await firestoreRequest(`deletions/del_${ts}_${Math.random().toString(36).slice(2, 8)}`, 'PATCH', { fields: toFields({
+    ts, by, records, reason: LEAVE_REASONS.includes(reason) ? reason : '', daysAsStudent: joined ? Math.floor((ts - joined) / 86_400_000) : -1,
+  }) });
+}
+async function listDeletions() {
+  const data = await firestoreRequest('deletions?pageSize=300');
+  return (data.documents || []).map(parseDoc).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+}
+
+// A student removes their own account. The token must come from a sign-in in the
+// last few minutes, so an unlocked phone is not enough.
+async function deleteOwnAccount(sa, user, idToken, reason) {
+  const claims = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url'));
+  if (Math.floor(Date.now() / 1000) - (claims.auth_time || 0) > FRESH_SIGN_IN_SECONDS) {
+    return { status: 403, error: 'Please confirm with Google again.' };
+  }
+  const { records } = await deleteStudent(sa, user.localId);
+  const token = await getFirebaseToken(sa);
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${sa.project_id}/accounts:delete`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ localId: user.localId }),
+  });
+  if (!r.ok) throw new Error('Your data was removed, but the account could not be closed. Please try again.');
+  await recordDeletion('student', records, Number(user.createdAt) || 0, reason);
+  return { ok: true };
+}
+
 // ── Delete everything one student has stored ─────────────────────
 async function deleteStudent(sa, uid) {
   if (!/^[A-Za-z0-9_-]{6,128}$/.test(String(uid))) throw new Error('Invalid student.');
@@ -538,8 +571,8 @@ const AGENT_RUN = {
   },
 
   async digest(sa) {
-    const [{ entries }, accounts, days, checks, reportDocs] = await Promise.all([
-      scanHistory(true), listAccounts().catch(() => []), healthDays(14).catch(() => null), runChecks(sa), firestoreRequest('reports?pageSize=300'),
+    const [{ entries }, accounts, days, checks, reportDocs, gone] = await Promise.all([
+      scanHistory(true), listAccounts().catch(() => []), healthDays(14).catch(() => null), runChecks(sa), firestoreRequest('reports?pageSize=300'), listDeletions().catch(() => []),
     ]);
     const dayAgo = Date.now() - 86_400_000, recent = entries.filter(e => (e.ts || 0) > dayAgo);
     const perStudent = {};
@@ -552,7 +585,8 @@ const AGENT_RUN = {
     const top = Object.entries(subjects).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s, n]) => `${s} (${n})`).join(', ') || 'None';
     const problems = checks.filter(c => c.state !== 'ok' && c.id !== 'email');   // this email is the proof that email works
     let body = mailTable([
-      ['New students', accounts.filter(a => Number(a.createdAt) > dayAgo).length], ['Active students', Object.keys(perStudent).length],
+      ['New students', accounts.filter(a => Number(a.createdAt) > dayAgo).length],
+      ['Accounts deleted', gone.filter(d => d.by === 'student' && (d.ts || 0) > dayAgo).length], ['Active students', Object.keys(perStudent).length],
       ['Questions', recent.length], ['Top subjects', top], ['Total students', accounts.length],
       ['Questions with no answer (48 hours)', sum('failed') + sum('limited')],
       ['Average answer time', sum('ok') ? `${(sum('ms') / sum('ok') / 1000).toFixed(1)}s` : 'No data'], ['Open reports', open],
@@ -609,6 +643,14 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    if (req.body?.action === 'deleteAccount') {
+      const user = await signedInUser(req);
+      if (!user) return res.status(401).json({ error: 'Please sign in again.' });
+      const idToken = req.headers.authorization.replace(/^Bearer\s+/i, '');
+      const out = await deleteOwnAccount(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'), user, idToken, req.body.reason);
+      return res.status(out.status || 200).json(out);
+    }
+
     if (req.body?.action === 'report') {
       const user = await signedInUser(req);
       if (!user) return res.status(401).json({ error: 'Please sign in to send a report.' });
@@ -705,6 +747,8 @@ export default async function handler(req, res) {
         let totalUsers = new Set(entries.map(e => e.uid)).size, accounts = [];
         try { accounts = await listAccounts(); totalUsers = accounts.length; } catch (_) {}
         const growth = growthNumbers(entries, accounts);
+        const gone = await listDeletions().catch(() => []);
+        growth.deletedWeek = gone.filter(d => d.by === 'student' && (d.ts || 0) > Date.now() - 7 * 86_400_000).length;
         return res.status(200).json({
           totalUsers, totalQuestions: entries.length, totalPhotoQ, totalTextQ, capped, growth,
           topSubjects: Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]).slice(0, 10),
@@ -759,8 +803,14 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
-      case 'deleteStudent':
-        return res.status(200).json(await deleteStudent(serviceAccount, uid));
+      case 'deleteStudent': {
+        const done = await deleteStudent(serviceAccount, uid);
+        await recordDeletion('admin', done.records, 0, '');
+        return res.status(200).json(done);
+      }
+
+      case 'deletions':
+        return res.status(200).json({ deletions: await listDeletions() });
 
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });

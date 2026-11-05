@@ -2082,6 +2082,9 @@ body.sl-lock { overflow: hidden; }
 .sl-faq details[open] summary::after { transform: rotate(-135deg); }
 .sl-faq summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 12px; }
 .sl-faq p { margin: 0; padding: 0 .85rem .8rem; font-size: .87rem; line-height: 1.6; color: var(--muted); }
+.sl-del-label { display: block; margin: .8rem 0 0; font-size: .8rem; font-weight: 600; color: var(--muted); text-align: left; }
+.sl-dlg-acts button:disabled { opacity: .4; cursor: default; }
+#slDlg .sl-dlg { max-height: calc(100dvh - 2.5rem); overflow-y: auto; }
 </style>
 <body>
 <script src="/icons.js"></script>
@@ -2666,7 +2669,8 @@ function slSettings() {
     </div>
     ${user ? `<p class="sl-section">${slEsc(x.account)}</p><div class="sl-card">
       <div class="sl-row"><div class="sl-row-t">${slEsc(user.displayName || 'StudyLens')}</div><div class="sl-row-s">${slEsc(user.email)}</div></div>
-      <button class="sl-link danger" data-act="signout">${slEsc(x.signOut)}</button></div>` : ''}
+      <button class="sl-link danger" data-act="signout">${slEsc(x.signOut)}</button>
+      <button class="sl-link danger" data-act="deleteAccount"><span>${slEsc(slD().item)}<br/><span class="sl-row-s">${slEsc(slD().itemHint)}</span></span></button></div>` : ''}
     <div class="sl-card">
       <button class="sl-link" data-act="page" data-val="about">${slEsc(x.about)}${slIcon('next')}</button>
       <button class="sl-link" data-act="page" data-val="faq">${slEsc(slF().title)}${slIcon('next')}</button>
@@ -2690,7 +2694,7 @@ function slAbout() {
     <p class="sl-muted" style="text-align:center">© ${new Date().getFullYear()} StudyLens AI. ${slEsc(x.tagline)}.</p>`;
 }
 function slFaq() {
-  return `<div class="sl-faq">${slF().items.map(([q, a]) => `<details><summary>${slEsc(q)}</summary><p>${slEsc(a)}</p></details>`).join('')}</div>`;
+  return `<div class="sl-faq">${[...slF().items, [slD().faqQ, slD().faqA]].map(([q, a]) => `<details><summary>${slEsc(q)}</summary><p>${slEsc(a)}</p></details>`).join('')}</div>`;
 }
 function slPrivacy() {
   return `<p class="sl-muted">Last updated: 5 November 2026</p>
@@ -2718,6 +2722,7 @@ function slPrivacy() {
     <h3>Your choices</h3><ul>
       <li>Clear saved answers from Settings. This removes them from the active profile.</li>
       <li>If you report an answer, the question, answer and your note are saved with your account details so we can check it.</li>
+      <li>Delete your account at any time from Settings. Your account, saved answers, bookmarks, family profiles and reports are removed permanently. We keep only an anonymous record that an account was deleted, with no name or email.</li>
       <li>The administrator can delete a student's stored history and reports.</li>
       <li>Sign out at any time from the menu.</li></ul>
     <h3>Changes</h3>
@@ -2800,6 +2805,7 @@ function slAction(act, val) {
     case 'share': return slAfterClose(slShare);
     case 'install': return slAfterClose(slInstall);
     case 'signout': return slAfterClose(handleAuthClick);
+    case 'deleteAccount': return slAfterClose(slDeleteAccount);
     case 'dark': slSetTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); return renderMenu();
     case 'theme': slSetTheme(val); return slRenderPage('settings');
     case 'lang': setLang(val); return slRenderPage('settings');
@@ -3193,6 +3199,67 @@ async function shareAnswer() {
   }
 }
 
+// Delete account. The word DELETE stops accidents, and Google sign-in is asked for
+// again so nobody holding an unlocked phone can remove someone else's account.
+var SL_DEL = {"en":{"item":"Delete account","itemHint":"Permanently removes your account and everything saved in it.","title":"Delete your account?","body":"This permanently removes your account, saved answers, bookmarks, family profiles and reports. This cannot be undone.","why":"Why are you leaving? (optional)","reasons":[["not_useful","Not useful for me"],["wrong_answers","Answers were wrong"],["privacy","Privacy reasons"],["other","Something else"]],"type":"Type DELETE to confirm","confirm":"Delete","confirming":"Confirm it's you","confirmingBody":"Choose your Google account to continue.","deleting":"Deleting your account…","done":"Your account is deleted","doneBody":"Everything saved in it has been removed.","failed":"Couldn't delete your account","wrongAccount":"That's a different Google account. Choose the account you're deleting.","faqQ":"How do I delete my account?","faqA":"Open Settings and tap Delete account. Confirm with your Google account, and your account and everything saved in it are permanently removed."},"bn":{"item":"অ্যাকাউন্ট মুছুন","itemHint":"আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে দেয়।","title":"অ্যাকাউন্ট মুছবেন?","body":"এতে আপনার অ্যাকাউন্ট, সংরক্ষিত উত্তর, বুকমার্ক, পারিবারিক প্রোফাইল ও রিপোর্ট স্থায়ীভাবে মুছে যাবে। এটি আর ফেরানো যাবে না।","why":"কেন চলে যাচ্ছেন? (ঐচ্ছিক)","reasons":[["not_useful","আমার কাজে আসছে না"],["wrong_answers","উত্তর ভুল ছিল"],["privacy","গোপনীয়তার কারণে"],["other","অন্য কারণ"]],"type":"নিশ্চিত করতে DELETE লিখুন","confirm":"মুছুন","confirming":"আপনিই কিনা নিশ্চিত করুন","confirmingBody":"এগিয়ে যেতে আপনার Google অ্যাকাউন্ট বেছে নিন।","deleting":"অ্যাকাউন্ট মোছা হচ্ছে…","done":"আপনার অ্যাকাউন্ট মুছে গেছে","doneBody":"এতে সংরক্ষিত সবকিছু সরিয়ে দেওয়া হয়েছে।","failed":"অ্যাকাউন্ট মোছা যায়নি","wrongAccount":"এটি অন্য Google অ্যাকাউন্ট। যে অ্যাকাউন্টটি মুছছেন সেটি বেছে নিন।","faqQ":"অ্যাকাউন্ট কীভাবে মুছব?","faqA":"সেটিংস খুলে অ্যাকাউন্ট মুছুন চাপুন। Google অ্যাকাউন্ট দিয়ে নিশ্চিত করলে আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে যাবে।"},"hi":{"item":"खाता हटाएँ","itemHint":"आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हटा देता है।","title":"अपना खाता हटाएँ?","body":"इससे आपका खाता, सहेजे गए उत्तर, बुकमार्क, पारिवारिक प्रोफ़ाइल और रिपोर्ट स्थायी रूप से हट जाएँगे। इसे वापस नहीं किया जा सकता।","why":"आप क्यों जा रहे हैं? (वैकल्पिक)","reasons":[["not_useful","मेरे काम का नहीं"],["wrong_answers","उत्तर गलत थे"],["privacy","गोपनीयता के कारण"],["other","कुछ और"]],"type":"पुष्टि के लिए DELETE लिखें","confirm":"हटाएँ","confirming":"पुष्टि करें कि यह आप हैं","confirmingBody":"आगे बढ़ने के लिए अपना Google खाता चुनें।","deleting":"आपका खाता हटाया जा रहा है…","done":"आपका खाता हटा दिया गया है","doneBody":"उसमें सहेजी गई हर चीज़ हटा दी गई है।","failed":"खाता नहीं हटाया जा सका","wrongAccount":"यह कोई दूसरा Google खाता है। वही खाता चुनें जिसे आप हटा रहे हैं।","faqQ":"अपना खाता कैसे हटाएँ?","faqA":"सेटिंग्स खोलें और खाता हटाएँ दबाएँ। Google खाते से पुष्टि करने पर आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हट जाएगी।"},"as":{"item":"একাউণ্ট মচক","itemHint":"আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰায়।","title":"আপোনাৰ একাউণ্ট মচিবনে?","body":"ইয়াৰ ফলত আপোনাৰ একাউণ্ট, সংৰক্ষিত উত্তৰ, বুকমাৰ্ক, পৰিয়ালৰ প্ৰফাইল আৰু ৰিপ'ৰ্ট স্থায়ীভাৱে আঁতৰি যাব। ইয়াক ঘূৰাই আনিব নোৱাৰি।","why":"আপুনি কিয় গুচি গৈছে? (ঐচ্ছিক)","reasons":[["not_useful","মোৰ কামত নাহে"],["wrong_answers","উত্তৰ ভুল আছিল"],["privacy","গোপনীয়তাৰ কাৰণে"],["other","আন কিবা"]],"type":"নিশ্চিত কৰিবলৈ DELETE লিখক","confirm":"মচক","confirming":"আপুনিয়েই বুলি নিশ্চিত কৰক","confirmingBody":"আগবাঢ়িবলৈ আপোনাৰ Google একাউণ্ট বাছনি কৰক।","deleting":"আপোনাৰ একাউণ্ট মচা হৈছে…","done":"আপোনাৰ একাউণ্ট মচা হ'ল","doneBody":"তাত সংৰক্ষিত সকলো আঁতৰোৱা হৈছে।","failed":"একাউণ্ট মচিব পৰা নগ'ল","wrongAccount":"এইটো আন এটা Google একাউণ্ট। যিটো মচিছে সেইটো বাছনি কৰক।","faqQ":"মোৰ একাউণ্ট কেনেকৈ মচিম?","faqA":"ছেটিংছ খুলি একাউণ্ট মচক টিপক। Google একাউণ্টেৰে নিশ্চিত কৰিলে আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰি যাব।"}};
+function slD() { return SL_DEL[typeof currentLang === 'string' ? currentLang : 'en'] || SL_DEL.en; }
+function slClearDevice() {
+  const keep = ['studylens_theme', 'studylens_text', 'studylens_motion', 'studylens_install_bar'];
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith('studylens_') && !keep.includes(k)).forEach(k => localStorage.removeItem(k));
+  } catch (_) {}
+}
+async function slDeleteRun(reason) {
+  const d = slD(), a = slA(), close = () => slDialogClose();
+  const failed = body => slDialog({ mark: 'bad', title: d.failed, body, onBack: close, actions: [{ label: a.close, run: close }] });
+  slDialog({ mark: 'busy', title: d.confirming, body: d.confirmingBody });
+  slDlgState.onBack = null;
+  try { await FB.reauthGoogle(); }
+  catch (e) {
+    const code = e?.code || '';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return close();
+    return failed(code === 'auth/user-mismatch' ? d.wrongAccount : code === 'auth/popup-blocked' ? a.errBlocked : a.errOther);
+  }
+  slDialog({ mark: 'busy', title: d.deleting });
+  slDlgState.onBack = null;
+  try {
+    const user = slUser(), token = await user.getIdToken(true);
+    const res = await fetch('/api/admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'deleteAccount', reason }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || a.errOther);
+    slClearDevice();
+    await FB.signOutUser().catch(() => {});
+    slDialog({ mark: 'done', title: d.done, body: d.doneBody });
+    slDlgState.onBack = null;
+    setTimeout(() => location.replace('/'), 2200);
+  } catch (e) {
+    failed(navigator.onLine ? e.message : a.errNet);
+  }
+}
+function slDeleteAccount() {
+  const d = slD(), a = slA(), close = () => slDialogClose();
+  let reason = '';
+  slDialog({
+    mark: 'bad', title: d.title, body: d.body, onBack: close,
+    html: `<p class="sl-del-label">${slEsc(d.why)}</p>
+      <div class="sl-report-list" role="radiogroup">${d.reasons.map(([v, label]) => `<button type="button" role="radio" data-reason="${v}" aria-checked="false">${slEsc(label)}</button>`).join('')}</div>
+      <label class="sl-del-label" for="slDeleteWord">${slEsc(d.type)}</label>
+      <input id="slDeleteWord" class="sl-report-note" autocomplete="off" autocapitalize="characters" spellcheck="false"/>`,
+    actions: [{ label: a.cancel, run: close }, { label: d.confirm, style: 'danger', run: () => slDeleteRun(reason) }],
+  });
+  const go = document.querySelector('#slDlg button.danger'), word = document.getElementById('slDeleteWord');
+  go.disabled = true;
+  word.oninput = () => { go.disabled = word.value.trim() !== 'DELETE'; };
+  document.querySelectorAll('#slDlg .sl-report-list button').forEach(b => {
+    b.onclick = () => {
+      reason = reason === b.dataset.reason ? '' : b.dataset.reason;
+      document.querySelectorAll('#slDlg .sl-report-list button').forEach(x => x.setAttribute('aria-checked', String(x.dataset.reason === reason)));
+    };
+  });
+}
+
 // While the saved session is being checked, a splash replaces the login card
 function slAuthChecked() { document.getElementById('loginCheck')?.classList.add('done'); }
 setTimeout(slAuthChecked, 6000);
@@ -3212,7 +3279,7 @@ try {
   // ── Initialize Firebase directly (no /lib/*.js files needed) ──
   const { initializeApp }                        = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
   const { getAuth, GoogleAuthProvider,
-          signInWithPopup, signInWithRedirect,
+          signInWithPopup, signInWithRedirect, reauthenticateWithPopup,
           getRedirectResult, signOut,
           onAuthStateChanged }                   = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
   const { getFirestore, collection, doc,
@@ -3248,6 +3315,7 @@ try {
     }
   }
   function signOutUser()            { return signOut(auth); }
+  function reauthGoogle()           { return reauthenticateWithPopup(auth.currentUser, provider); }
   function onUserChanged(cb)        { return onAuthStateChanged(auth, cb); }
   async function handleRedirectResult() {
     // Check for any previous redirect result (from older sessions)
@@ -3336,7 +3404,7 @@ try {
 
   // Expose everything to the main script
   window._fb = {
-    signInWithGoogle, signOutUser, onUserChanged, handleRedirectResult,
+    signInWithGoogle, signOutUser, reauthGoogle, onUserChanged, handleRedirectResult,
     loadHistoryFromFirestore, saveHistoryEntryToFirestore, clearHistoryFromFirestore,
     loadProfilesFromFirestore, saveProfilesToFirestore,
     saveBookmarksToFirestore, loadBookmarksFromFirestore,
@@ -3365,6 +3433,7 @@ try {
 const FB = {
   signInWithGoogle:           () => window._fb ? window._fb.signInWithGoogle()           : Promise.reject(new Error('Firebase not loaded')),
   signOutUser:                () => window._fb ? window._fb.signOutUser()                : Promise.resolve(),
+  reauthGoogle:               () => window._fb ? window._fb.reauthGoogle()               : Promise.reject(new Error('Firebase not loaded')),
   onUserChanged:              (cb)  => window._fb ? window._fb.onUserChanged(cb)         : null,
   loadHistoryFromFirestore:   (uid, pid)       => window._fb ? window._fb.loadHistoryFromFirestore(uid, pid)        : Promise.resolve([]),
   saveHistoryEntryToFirestore:(uid, pid, e)    => window._fb ? window._fb.saveHistoryEntryToFirestore(uid, pid, e)  : Promise.resolve(),

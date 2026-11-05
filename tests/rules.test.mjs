@@ -38,6 +38,7 @@ await check('unverified admin email is refused', () => assertFails(fake.doc('use
 await check('other collections stay closed', () => assertFails(admin.doc('private/x').get()));
 await check('students cannot read reports', () => assertFails(owner.doc('reports/r1').get()));
 await check('students cannot write reports directly', () => assertFails(owner.doc('reports/r2').set({ a: 1 })));
+await check('deletion records stay closed', () => assertFails(owner.doc('deletions/d1').get()));
 await env.cleanup();
 console.log('failures', failed);
 process.exit(failed ? 1 : 0);
