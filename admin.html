@@ -551,6 +551,22 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
 .danger-btn{border-color:var(--red)!important;color:var(--red)!important}
 .danger-btn:disabled{opacity:.4}
 #deleteResult{margin-top:.5rem;color:var(--text)}
+.status-row{display:flex;align-items:center;gap:.7rem;padding:.75rem 1rem;border-bottom:1px solid var(--border)}
+.status-row:last-child{border-bottom:0}
+.status-dot{width:.6rem;height:.6rem;border-radius:50%;flex:none;background:var(--muted)}
+.status-dot.s-ok{background:var(--green)}.status-dot.s-warn{background:var(--orange,#ff9f43)}.status-dot.s-bad{background:var(--red)}
+.status-name{font-family:var(--mono);font-size:.75rem;color:var(--text);font-weight:700}
+.status-detail{font-family:var(--mono);font-size:.62rem;color:var(--muted);line-height:1.5}
+.status-word{font-family:var(--mono);font-size:.58rem;flex:none}
+.status-word.s-ok{color:var(--green)}.status-word.s-warn{color:var(--orange,#ff9f43)}.status-word.s-bad{color:var(--red)}
+.agent-card{margin-bottom:.7rem}
+.agent-head{display:flex;align-items:center;gap:.55rem}
+.agent-last{font-family:var(--mono);font-size:.62rem;color:var(--text);line-height:1.5}
+.agent-log{display:flex;gap:.55rem;align-items:flex-start;padding:.45rem 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.64rem;color:var(--text);line-height:1.5}
+.agent-log:last-child{border-bottom:0}
+.agent-log .status-dot{margin-top:.3rem}
+.ai-review{padding:.7rem .8rem;margin-bottom:1rem;border:1px solid var(--border);border-left:3px solid var(--cyan);font-family:var(--mono);font-size:.68rem;color:var(--text);line-height:1.55}
+.verdict{font-size:.56rem;text-transform:uppercase}.v-wrong{color:var(--red)}.v-correct{color:var(--green)}.v-partly{color:var(--orange,#ff9f43)}
 </style>
 </head>
 <body>
@@ -599,7 +615,8 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
       <div class="sidebar-label">System</div>
       <button class="nav-item" onclick="switchTab('health',this)"><span class="nav-item-icon">🏃</span>AI Health</button>
       <button class="nav-item" onclick="switchTab('quota',this)"><span class="nav-item-icon">⚡</span>API Quota</button>
-      <button class="nav-item" onclick="switchTab('setup',this)"><span class="nav-item-icon">⚙️</span>Setup</button>
+      <button class="nav-item" onclick="switchTab('agents',this)"><span class="nav-item-icon">🧠</span>Agents</button>
+      <button class="nav-item" onclick="switchTab('status',this)"><span class="nav-item-icon">⚙️</span>Status</button>
     </aside>
 
     <!-- MAIN -->
@@ -691,31 +708,24 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
         <div id="health-content" style="display:none"></div>
       </div>
 
-      <!-- ══ SETUP ══ -->
-      <div class="panel" id="panel-setup">
+      <!-- ══ AGENTS ══ -->
+      <div class="panel" id="panel-agents">
         <div class="page-hdr">
-          <div class="page-title">Setup Guide</div>
-          <div class="page-sub">// ENVIRONMENT &amp; DEPLOYMENT INSTRUCTIONS</div>
+          <div class="page-title">Agents</div>
+          <div class="page-sub">// AUTOMATIC CHECKS, REVIEWS AND EMAIL</div>
         </div>
-        <div class="setup-block" style="--c:var(--orange)">
-          <div class="setup-title">▸ Required Environment Variables</div>
-          <div class="setup-step"><span class="setup-num">1.</span><span>Admin access uses Google sign-in. No password is needed.</span></div>
-          <div class="setup-step"><span class="setup-num">2.</span><span>Firebase Console → Project Settings → Service Accounts → <strong>Generate new private key</strong>, then add it as <code>FIREBASE_SERVICE_ACCOUNT</code>.</span></div>
-          <div class="setup-step"><span class="setup-num">3.</span><span>Get free Groq keys at <code>console.groq.com</code> → add as <code>GROQ_KEY_1</code>, <code>GROQ_KEY_2</code>, etc.</span></div>
-          <div class="setup-step"><span class="setup-num">4.</span><span>Get free Gemini keys at <code>aistudio.google.com</code> → add as <code>GEMINI_KEY_1</code>, <code>GEMINI_KEY_2</code>, etc.</span></div>
-          <div class="setup-step"><span class="setup-num">5.</span><span>Vercel Dashboard → Storage → Create KV Database → link to project → add <code>KV_REST_API_URL</code> and <code>KV_REST_API_TOKEN</code>.</span></div>
+        <div class="loading" id="agents-loading"><div class="loading-track"></div>LOADING AGENTS…</div>
+        <div id="agents-content" style="display:none"></div>
+      </div>
+
+      <!-- ══ STATUS ══ -->
+      <div class="panel" id="panel-status">
+        <div class="page-hdr">
+          <div class="page-title">System Status</div>
+          <div class="page-sub">// LIVE CHECKS, RUN NOW</div>
         </div>
-        <div class="setup-block" style="--c:var(--green)">
-          <div class="setup-title">▸ Files to Deploy on Vercel</div>
-          <div class="setup-step"><span class="setup-num">→</span><span><code>/api/ask.js</code> — main AI backend (handles text, photo, quiz modes)</span></div>
-          <div class="setup-step"><span class="setup-num">→</span><span><code>/api/admin.js</code> — admin API backend</span></div>
-          <div class="setup-step"><span class="setup-num">→</span><span><code>/admin.html</code> — this admin panel (root of repo)</span></div>
-          <div class="setup-step"><span class="setup-num">→</span><span><code>/index.html</code> — student-facing app (root of repo)</span></div>
-        </div>
-        <div class="setup-block" style="--c:var(--yellow)">
-          <div class="setup-title">▸ Firebase Rules</div>
-          <div class="setup-step"><span class="setup-num">→</span><span><code>firestore.rules</code> and <code>storage.rules</code> are in the repo. They are tested and published automatically when they change on main.</span></div>
-        </div>
+        <div class="loading" id="status-loading"><div class="loading-track"></div>RUNNING LIVE CHECKS…</div>
+        <div id="status-content" style="display:none"></div>
       </div>
 
     </main>
@@ -850,6 +860,8 @@ function switchTab(tab, el) {
   if (tab==='quota') loadQuota();
   if (tab==='reports') loadReports();
   if (tab==='health') loadHealth();
+  if (tab==='agents') loadAgents();
+  if (tab==='status') loadStatus();
 }
 
 function refreshCurrent() {
@@ -861,6 +873,8 @@ function refreshCurrent() {
   if (activeTab==='quota') loadQuota();
   if (activeTab==='reports') loadReports();
   if (activeTab==='health') loadHealth();
+  if (activeTab==='agents') loadAgents();
+  if (activeTab==='status') loadStatus();
 }
 
 function show(loadId, contentId) {
@@ -1283,7 +1297,7 @@ function renderReports() {
     <div class="user-row" onclick="openReportModal(reportList[${i}])">
       <span class="badge ${r.status==='resolved'?'badge-text':'badge-photo'}">${r.status==='resolved'?'Resolved':'Open'}</span>
       <div class="user-id" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(REASON_LABEL[r.reason]||r.reason)}<br/><span style="color:var(--muted)">${esc((r.question||'(photo)').slice(0,70))}</span></div>
-      <div class="user-seen">${r.ts?esc(new Date(r.ts).toLocaleDateString()):'—'}</div>
+      <div class="user-seen">${r.aiVerdict?`<span class="verdict v-${esc(r.aiVerdict)}">${esc(r.aiVerdict)}</span><br/>`:''}${r.ts?esc(new Date(r.ts).toLocaleDateString()):'—'}</div>
     </div>`).join('')}</div>`;
 }
 function openReportModal(r) {
@@ -1295,6 +1309,7 @@ function openReportModal(r) {
       <span class="meta-chip">Student: <strong>${esc(r.name||r.email||r.uid)}</strong></span>
       <span class="meta-chip">Time: <strong>${r.ts?esc(new Date(r.ts).toLocaleString()):'—'}</strong></span>
     </div>
+    ${r.aiVerdict ? `<div class="ai-review"><div class="modal-a-label">Report Reviewer: ${esc(r.aiVerdict)} (${esc(r.aiConfidence)}% sure)</div><div>${esc(r.aiWhy)}</div>${r.aiFix ? `<div style="margin-top:.35rem"><b>Correct result:</b> ${esc(r.aiFix)}</div>` : ''}${r.aiAction ? `<div style="margin-top:.35rem;color:var(--green)">${esc(r.aiAction)}</div>` : ''}</div>` : ''}
     ${r.note ? `<div class="modal-a-label">Student's note</div><div class="modal-a" style="margin-bottom:1rem;white-space:pre-wrap">${esc(r.note)}</div>` : ''}
     ${r.question ? `<div class="modal-q">${esc(r.question)}</div>` : ''}
     <div class="modal-a-label">AI Answer</div>
@@ -1318,6 +1333,70 @@ async function removeReport(id) {
     reportList = reportList.filter(r=>r.id!==id);
     closeModal('answerModal'); reportBadge(); renderReports();
   } catch(e) { alert(e.message); }
+}
+
+// ── STATUS ─────────────────────────────────────────
+async function loadStatus() {
+  loading('status-loading','status-content');
+  try {
+    const { checks, at } = await api('status');
+    const words = { ok:'Working', warn:'Needs a look', bad:'Problem' };
+    const bad = checks.filter(c=>c.state==='bad').length, warn = checks.filter(c=>c.state==='warn').length;
+    document.getElementById('status-content').innerHTML = `
+      <div class="alert-banner ${bad?'crit':warn?'':'ok'}">${bad?`${bad} problem${bad>1?'s':''} found`:warn?`${warn} item${warn>1?'s':''} to look at`:'Everything is working'}</div>
+      <div class="card" style="padding:0">${checks.map(c=>`<div class="status-row">
+        <span class="status-dot s-${esc(c.state)}"></span>
+        <div style="min-width:0;flex:1"><div class="status-name">${esc(c.name)}</div><div class="status-detail">${esc(c.detail)}</div></div>
+        <span class="status-word s-${esc(c.state)}">${esc(words[c.state]||c.state)}</span>
+      </div>`).join('')}</div>
+      <p class="status-detail" style="margin-top:.8rem">Checked ${esc(new Date(at).toLocaleTimeString())}. Each visit sends one small test question to each AI.</p>`;
+    show('status-loading','status-content');
+  } catch(e) {
+    document.getElementById('status-loading').style.display='none';
+    errState('status-content', e.message);
+  }
+}
+
+// ── AGENTS ─────────────────────────────────────────
+function agentTime(t) { return t ? new Date(t).toLocaleString() : 'Not run yet'; }
+async function loadAgents() {
+  loading('agents-loading','agents-content');
+  try {
+    const d = await api('agentsInfo'), names = Object.fromEntries(d.agents.map(a=>[a.id,a.name]));
+    const mail = d.mail;
+    document.getElementById('agents-content').innerHTML = `
+      <div class="alert-banner ${mail?.ok?'ok':''}">${mail?.ok?`Email working. Last sent ${esc(agentTime(mail.at))}.`:esc(mail?.error||'Email is not connected yet.')}${d.waiting?` ${esc(d.waiting)} waiting to send.`:''}</div>
+      ${d.agents.map(a=>`<div class="card agent-card">
+        <div class="agent-head">
+          <span class="status-dot s-${a.paused?'warn':a.last&&!a.last.ok?'bad':'ok'}"></span>
+          <div class="status-name" style="flex:1">${esc(a.name)}</div>
+          <span class="status-detail">${esc(a.when)}</span>
+        </div>
+        <div class="status-detail" style="margin:.35rem 0">${esc(a.does)}</div>
+        <div class="agent-last">${a.paused?'Paused. ':''}${a.last?`${esc(agentTime(a.last.at))}: ${esc(a.last.summary)}`:'Not run yet.'}</div>
+        <div style="display:flex;gap:.5rem;margin-top:.6rem">
+          <button class="pg-btn" onclick="runAgentNow('${esc(a.id)}',this)">Run now</button>
+          <button class="pg-btn" onclick="pauseAgent('${esc(a.id)}',${!a.paused})">${a.paused?'Resume':'Pause'}</button>
+        </div>
+      </div>`).join('')}
+      <div class="sec-hdr" style="margin-top:1.25rem"><span class="sec-title">Activity</span><div class="sec-line"></div></div>
+      <div class="card">${d.log.length?d.log.map(l=>`<div class="agent-log"><span class="status-dot s-${l.ok?'ok':'bad'}"></span><div style="min-width:0"><b>${esc(names[l.agent]||l.agent)}</b> ${esc(l.summary)}<br/><span class="status-detail">${esc(agentTime(l.at))}</span></div></div>`).join(''):'<div class="status-detail">No activity yet.</div>'}</div>`;
+    show('agents-loading','agents-content');
+  } catch(e) {
+    document.getElementById('agents-loading').style.display='none';
+    errState('agents-content', e.message);
+  }
+}
+async function runAgentNow(id, btn) {
+  btn.disabled = true; btn.textContent = 'Running…';
+  try { await api('agentRun', { agent:id }); }
+  catch(e) { alert(e.message); }
+  loadAgents(); loadReports(true);
+}
+async function pauseAgent(id, paused) {
+  try { await api('agentPause', { agent:id, paused }); }
+  catch(e) { alert(e.message); }
+  loadAgents();
 }
 
 // ── AI HEALTH ──────────────────────────────────────

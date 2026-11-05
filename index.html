@@ -2901,7 +2901,7 @@ function openReport() {
     try {
       const res = await authedFetch('/api/admin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'report', reason, note, question: payload.question || '', answer: lastAnswerText, subject: payload.subject || '', className: payload.className || '', mode: payload.mode || 'text' }),
+        body: JSON.stringify({ action: 'report', reason, note, question: payload.question || '', answer: lastAnswerText, subject: payload.subject || '', className: payload.className || '', mode: payload.mode || 'text', board: payload.board || '', lang: payload.lang || 'en' }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || r.failed);
       slReported = lastAnswerText;

@@ -1,0 +1,45 @@
+name: StudyLens agents
+
+# Every 3 hours: Watchdog and Report Reviewer.
+# Every morning at about 8:10 AM IST: Quality Patrol and the Daily Digest email.
+# Needs FIREBASE_SERVICE_ACCOUNT. Email also needs GMAIL_USER and GMAIL_APP_PASSWORD.
+# Optional: REPORT_EMAIL, if the emails should go to a different address.
+on:
+  schedule:
+    - cron: '25 */3 * * *'
+    - cron: '40 2 * * *'
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Which agents to run
+        type: choice
+        options: [watch, daily]
+        default: watch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studylens-agents
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm i --no-save nodemailer@6 > /dev/null
+      - name: Run the agents
+        env:
+          TASK: ${{ github.event_name == 'workflow_dispatch' && inputs.task || (github.event.schedule == '40 2 * * *' && 'daily' || 'watch') }}
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+        run: node scripts/run-agents.mjs
