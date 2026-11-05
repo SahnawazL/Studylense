@@ -3049,7 +3049,7 @@ function slShareCard() {
     <div class="share-foot"><b>${slEsc(g.readMore)}</b><span>${slEsc(location.host)}</span></div>`;
   const body = card.querySelector('.result-body');
   body.append(...[...source.cloneNode(true).childNodes]);
-  body.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  body.querySelectorAll('[id]').forEach(n => { if (!n.closest('svg')) n.removeAttribute('id'); });   // drawings need theirs for lines and arrows
   // the card sits inside an off-screen holder, so the picture itself has no offset
   const stage = document.createElement('div');
   stage.className = 'share-stage';
