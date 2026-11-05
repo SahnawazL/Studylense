@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="theme-color" id="metaThemeColor" content="#0f1117"/>
+<script>
+(function () {
+  var root = document.documentElement;
+  function read(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch (_) { return fallback; } }
+  var mode = read('studylens_theme', 'dark');
+  if (mode === 'system') mode = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  root.setAttribute('data-theme', mode);
+  root.setAttribute('data-text', read('studylens_text', 'normal'));
+  root.setAttribute('data-motion', read('studylens_motion', 'on'));
+})();
+</script>
 <title>StudyLens AI — AI Homework Helper</title>
 <link rel="icon" type="image/svg+xml" href="/studylens-logo.svg"/>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
@@ -170,7 +182,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .login-error {
   display: none; margin-top: 1rem; padding: 0.6rem 0.9rem;
   background: rgba(247,79,79,0.1); border: 1px solid rgba(247,79,79,0.25);
-  border-radius: 10px; font-size: 0.78rem; color: #f78f8f; line-height: 1.4;
+  border-radius: 10px; font-size: 0.78rem; color: var(--rose); line-height: 1.4;
 }
 .login-error.show { display: block; }
 /* ── END LOGIN GATE ───────────────────────────────────────── */
@@ -178,7 +190,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 /* LANG BAR */
 .lang-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  background: rgba(15,17,23,0.97); backdrop-filter: blur(16px);
+  background: var(--bar); backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 1rem;
   gap: 0.5rem;
@@ -722,7 +734,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .karaoke-bar {
   position: fixed;
   bottom: 0; left: 0; right: 0; z-index: 600;
-  background: rgba(15,17,23,0.97);
+  background: var(--bar);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-top: 1px solid var(--border);
@@ -794,7 +806,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .followup-send:hover { transform: scale(1.08); }
 .followup-send:active { transform: scale(0.96); }
-.error-msg { background: rgba(247,79,79,0.1); border: 1px solid rgba(247,79,79,0.25); border-radius: 11px; padding: 0.75rem 1rem; font-size: 0.83rem; color: #f78f8f; display: none; margin-bottom: 1rem; }
+.error-msg { background: rgba(247,79,79,0.1); border: 1px solid rgba(247,79,79,0.25); border-radius: 11px; padding: 0.75rem 1rem; font-size: 0.83rem; color: var(--rose); display: none; margin-bottom: 1rem; }
 .error-msg.visible { display: block; }
 
 /* TIPS */
@@ -1030,20 +1042,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 
 /* FOOTER */
-.footer-note { text-align: center; font-size: 0.74rem; color: var(--muted); padding: 1rem 0 0.4rem; border-top: 1px solid var(--border); line-height: 1.6; }
-.footer-dev-link {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 700;
-  border-bottom: 1px dashed rgba(79,142,247,0.4);
-  transition: color 0.2s, border-color 0.2s;
-}
-.footer-dev-link:hover { color: #7b5eff; border-color: rgba(123,94,255,0.6); }
 
 /* QUIZ BUTTON */
 .ans-action-btn.quiz-btn:hover,
-.ans-action-btn.quiz-btn:focus { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.08); }
-.ans-action-btn.quiz-btn.active { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.12); }
+.ans-action-btn.quiz-btn:focus { border-color: var(--violet); color: var(--violet); background: rgba(167,139,250,0.08); }
+.ans-action-btn.quiz-btn.active { border-color: var(--violet); color: var(--violet); background: rgba(167,139,250,0.12); }
 
 /* BOOKMARK BUTTON */
 .ans-action-btn.bookmark-btn:hover,
@@ -1165,9 +1168,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 /* SIMPLER BUTTON */
 .ans-action-btn.simpler-btn:hover,
-.ans-action-btn.simpler-btn:focus { border-color: #06b6d4; color: #06b6d4; background: rgba(6,182,212,0.08); }
+.ans-action-btn.simpler-btn:focus { border-color: var(--cyan); color: var(--cyan); background: rgba(6,182,212,0.08); }
 .ans-action-btn.simpler-btn.loading {
-  border-color: #06b6d4; color: #06b6d4;
+  border-color: var(--cyan); color: var(--cyan);
   background: rgba(6,182,212,0.08);
   animation: speakPulse 1.4s ease-in-out infinite;
 }
@@ -1213,7 +1216,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .quiz-title {
   font-family: var(--font-head); font-size: 0.85rem; font-weight: 800;
-  color: #a78bfa; display: flex; align-items: center; gap: 0.4rem;
+  color: var(--violet); display: flex; align-items: center; gap: 0.4rem;
 }
 .quiz-score-badge {
   font-size: 0.7rem; font-weight: 700; color: var(--muted);
@@ -1230,7 +1233,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .quiz-q.correct  { border-color: var(--green); background: rgba(62,207,142,0.06); }
 .quiz-q.wrong    { border-color: var(--danger); background: rgba(247,79,79,0.06); }
 .quiz-q-text { font-size: 0.84rem; font-weight: 600; color: var(--text); margin-bottom: 0.55rem; line-height: 1.4; }
-.quiz-q-num  { font-size: 0.7rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem; }
+.quiz-q-num  { font-size: 0.7rem; font-weight: 700; color: var(--violet); margin-bottom: 0.25rem; }
 
 /* Options */
 .quiz-options { display: flex; flex-direction: column; gap: 0.35rem; }
@@ -1242,12 +1245,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   transition: all 0.18s; text-align: left; font-family: var(--font-body);
   font-weight: 500;
 }
-.quiz-opt:hover:not(:disabled) { border-color: #a78bfa; background: rgba(167,139,250,0.08); }
+.quiz-opt:hover:not(:disabled) { border-color: var(--violet); background: rgba(167,139,250,0.08); }
 .quiz-opt:disabled { cursor: default; }
 .quiz-opt.opt-correct { border-color: var(--green); background: rgba(62,207,142,0.12); color: var(--green); font-weight: 700; }
-.quiz-opt.opt-wrong   { border-color: var(--danger); background: rgba(247,79,79,0.1); color: #f78f8f; }
+.quiz-opt.opt-wrong   { border-color: var(--danger); background: rgba(247,79,79,0.1); color: var(--rose); }
 .quiz-opt.opt-reveal  { border-color: var(--green); background: rgba(62,207,142,0.07); color: var(--green); font-weight: 600; }
-.quiz-opt-letter { font-weight: 800; font-size: 0.75rem; color: #a78bfa; flex-shrink: 0; width: 16px; }
+.quiz-opt-letter { font-weight: 800; font-size: 0.75rem; color: var(--violet); flex-shrink: 0; width: 16px; }
 .quiz-opt.opt-correct .quiz-opt-letter,
 .quiz-opt.opt-reveal  .quiz-opt-letter { color: var(--green); }
 .quiz-opt.opt-wrong   .quiz-opt-letter { color: var(--danger); }
@@ -1271,18 +1274,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .quiz-result-bar.show { display: block; }
 .quiz-result-bar.great  { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.25); }
 .quiz-result-bar.ok     { background: rgba(247,201,72,0.1);  color: var(--accent2); border: 1px solid rgba(247,201,72,0.25); }
-.quiz-result-bar.retry  { background: rgba(247,79,79,0.08);  color: #f78f8f; border: 1px solid rgba(247,79,79,0.2); }
+.quiz-result-bar.retry  { background: rgba(247,79,79,0.08);  color: var(--rose); border: 1px solid rgba(247,79,79,0.2); }
 
 /* Retry button */
 .quiz-retry-btn {
   display: none; width: 100%; margin-top: 0.5rem;
   background: none; border: 1.5px solid rgba(167,139,250,0.4);
-  color: #a78bfa; border-radius: 10px; padding: 0.55rem;
+  color: var(--violet); border-radius: 10px; padding: 0.55rem;
   font-family: var(--font-body); font-size: 0.8rem; font-weight: 700;
   cursor: pointer; transition: all 0.18s;
 }
 .quiz-retry-btn.show { display: block; }
-.quiz-retry-btn:hover { background: rgba(167,139,250,0.1); border-color: #a78bfa; }
+.quiz-retry-btn:hover { background: rgba(167,139,250,0.1); border-color: var(--violet); }
 
 /* Loading shimmer inside quiz card */
 .quiz-loading {
@@ -1290,7 +1293,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   display: flex; flex-direction: column; gap: 0.6rem; align-items: center;
 }
 .quiz-loading-text {
-  font-size: 0.8rem; color: #a78bfa; font-weight: 600;
+  font-size: 0.8rem; color: var(--violet); font-weight: 600;
   display: flex; align-items: center; gap: 0.4rem;
 }
 .quiz-shimmer {
@@ -1708,7 +1711,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .profile-save-btn {
   flex: 2; background: var(--green); border: none; border-radius: 11px;
   padding: 0.65rem; font-family: var(--font-body);
-  font-size: 0.85rem; font-weight: 800; color: #0f1117; cursor: pointer;
+  font-size: 0.85rem; font-weight: 800; color: var(--on-green); cursor: pointer;
   transition: all 0.18s;
 }
 .profile-save-btn:hover { transform: scale(1.02); background: #4de8a2; }
@@ -1860,6 +1863,111 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .chapter-chip.any-chip { border-color: rgba(247,201,72,0.35); color: var(--accent2); background: rgba(247,201,72,0.06); }
 .chapter-chip.any-chip.sel { border-color: var(--accent2); background: rgba(247,201,72,0.15); color: var(--accent2); }
+
+/* ── App shell: light theme, menu, pages, footer ───────────────── */
+:root { color-scheme: dark; --bar: rgba(15,17,23,0.97); --violet: #a78bfa; --rose: #f78f8f; --cyan: #06b6d4; --on-green: #0f1117; --shadow: rgba(0,0,0,0.45); }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb; --surface: #ffffff; --surface2: #edf0f7; --border: #d8deea;
+  --accent: #2563eb; --accent2: #9a6700; --green: #0a8558; --text: #161a25; --muted: #566077; --danger: #d42a2a;
+  --bar: rgba(255,255,255,0.96); --violet: #6a3fd4; --rose: #c02f2f; --cyan: #0e7490; --on-green: #ffffff; --shadow: rgba(30,40,70,0.16);
+}
+/* AI drawings and molecules are made for a dark board, so they keep one in both themes */
+:root[data-theme="light"] .ans-svg-wrap, :root[data-theme="light"] .ans-mol-box, .ans-mol-box {
+  --bg: #0f1117; --surface: #181c27; --surface2: #1f2435; --border: #2a2f42; --text: #eef0f8; --muted: #9aa2bf;
+  background: #181c27; border-radius: 8px; color: #eef0f8;
+}
+html[data-text="small"] { --text-scale: 0.92; }
+html[data-text="large"] { --text-scale: 1.14; }
+.result-body { zoom: var(--text-scale, 1); }
+html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after {
+  animation-duration: 0.001s !important; animation-delay: 0s !important; transition-duration: 0.001s !important; scroll-behavior: auto !important;
+}
+body.sl-lock { overflow: hidden; }
+.logo-group { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.menu-btn {
+  width: 38px; height: 38px; margin-left: -0.4rem; flex: none; display: grid; place-items: center;
+  background: none; border: 0; border-radius: 10px; color: var(--text); cursor: pointer;
+}
+.menu-btn:hover, .menu-btn:focus-visible { background: var(--surface2); }
+.sl-ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Side menu */
+.sl-scrim { position: fixed; inset: 0; z-index: 1500; background: rgba(5,8,16,0.55); opacity: 0; visibility: hidden; transition: opacity .22s, visibility .22s; }
+.sl-scrim.open { opacity: 1; visibility: visible; }
+.sl-drawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 1501; width: min(84vw, 320px);
+  display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border);
+  box-shadow: 8px 0 32px var(--shadow); transform: translateX(-105%); visibility: hidden;
+  transition: transform .24s cubic-bezier(.2,.8,.2,1), visibility .24s;
+}
+.sl-drawer.open { transform: none; visibility: visible; }
+.sl-drawer-head { display: flex; align-items: center; gap: .65rem; padding: 1rem; border-bottom: 1px solid var(--border); }
+.sl-drawer-head img { width: 40px; height: 40px; border-radius: 11px; flex: none; }
+.sl-drawer-who { min-width: 0; flex: 1; line-height: 1.3; }
+.sl-drawer-who b { display: block; font-family: var(--font-head); font-size: 1.02rem; color: var(--text); }
+.sl-drawer-who span { display: block; font-size: .76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-icon-btn { width: 36px; height: 36px; flex: none; display: grid; place-items: center; background: none; border: 0; border-radius: 10px; color: var(--muted); cursor: pointer; }
+.sl-icon-btn:hover, .sl-icon-btn:focus-visible { background: var(--surface2); color: var(--text); }
+.sl-drawer-list { flex: 1; overflow-y: auto; padding: .35rem .55rem 1rem; }
+.sl-group { padding: .85rem .6rem .3rem; font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sl-item {
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: .75rem; padding: .5rem .6rem;
+  background: none; border: 0; border-radius: 10px; color: var(--text); font: 500 .92rem var(--font-body); text-align: left; cursor: pointer;
+}
+.sl-item:hover, .sl-item:focus-visible { background: var(--surface2); }
+.sl-item .sl-ic { color: var(--muted); }
+.sl-item.danger, .sl-item.danger .sl-ic { color: var(--danger); }
+.sl-switch { margin-left: auto; width: 40px; height: 23px; flex: none; position: relative; border-radius: 12px; background: var(--border); transition: background .18s; }
+.sl-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .18s; }
+[aria-checked="true"] > .sl-switch { background: var(--accent); }
+[aria-checked="true"] > .sl-switch::after { transform: translateX(17px); }
+
+/* Full pages: About, Settings, Privacy, Terms, Licence */
+.sl-page { position: fixed; inset: 0; z-index: 2100; display: none; flex-direction: column; background: var(--bg); color: var(--text); }
+.sl-page.open { display: flex; animation: slPage .2s ease both; }
+@keyframes slPage { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.sl-page-bar { flex: none; display: flex; align-items: center; gap: .4rem; padding: .55rem .6rem; background: var(--bar); border-bottom: 1px solid var(--border); }
+.sl-page-bar h2 { font: 700 1.08rem var(--font-head); color: var(--text); margin: 0; }
+.sl-page-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sl-page-in { max-width: 560px; margin: 0 auto; padding: 1.1rem 1rem 2.5rem; font-size: .92rem; line-height: 1.65; }
+.sl-page-in h3 { font: 700 1rem var(--font-head); color: var(--text); margin: 1.2rem 0 .3rem; }
+.sl-page-in p { margin: .4rem 0; color: var(--text); }
+.sl-page-in ul { margin: .4rem 0; padding-left: 1.15rem; }
+.sl-page-in li { margin: .25rem 0; }
+.sl-muted { color: var(--muted) !important; font-size: .82rem; }
+.sl-about-head { text-align: center; padding: .6rem 0 .4rem; }
+.sl-about-head img { width: 76px; height: 76px; border-radius: 20px; }
+.sl-about-head h3 { font-size: 1.3rem; margin: .55rem 0 0; }
+.sl-licence { white-space: pre-wrap; word-break: break-word; font: .76rem/1.6 ui-monospace, Menlo, Consolas, monospace; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .9rem; color: var(--text); }
+.sl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin: .45rem 0 1.1rem; overflow: hidden; }
+.sl-row { padding: .75rem .85rem; }
+.sl-row + .sl-row { border-top: 1px solid var(--border); }
+.sl-row-t { font-weight: 600; font-size: .9rem; color: var(--text); }
+.sl-row-s { font-size: .78rem; font-weight: 400; color: var(--muted); line-height: 1.45; }
+.sl-seg { display: flex; gap: 3px; margin-top: .5rem; padding: 3px; background: var(--surface2); border-radius: 10px; }
+.sl-seg button { flex: 1; min-width: 0; min-height: 36px; padding: .2rem .3rem; background: none; border: 0; border-radius: 8px; color: var(--muted); font: 600 .8rem var(--font-body); cursor: pointer; }
+.sl-seg button[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px var(--shadow); }
+.sl-toggle { width: 100%; display: flex; align-items: center; gap: .7rem; background: none; border: 0; text-align: left; cursor: pointer; font: inherit; padding: .75rem .85rem; color: var(--text); }
+.sl-link { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .7rem; background: none; border: 0; text-align: left; cursor: pointer; padding: .8rem .85rem; color: var(--text); font: 600 .9rem var(--font-body); }
+.sl-link + .sl-link, .sl-row + .sl-link, .sl-link + .sl-row { border-top: 1px solid var(--border); }
+.sl-link.danger { color: var(--danger); }
+.sl-link .sl-ic { width: 16px; height: 16px; color: var(--muted); }
+.sl-section { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 .2rem; }
+
+/* Footer */
+.site-footer { margin-top: 1.6rem; padding: 1.3rem 0 .6rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .76rem; line-height: 1.55; }
+.sf-brand { display: flex; align-items: center; gap: .6rem; }
+.sf-brand img { width: 34px; height: 34px; border-radius: 9px; flex: none; }
+.sf-brand b { display: block; font: 700 .98rem var(--font-head); color: var(--text); }
+.sf-links { display: flex; flex-wrap: wrap; gap: .1rem 1rem; margin: .8rem 0; }
+.sf-links a { min-height: 32px; display: inline-flex; align-items: center; color: var(--text); font-weight: 500; font-size: .8rem; text-decoration: none; }
+.sf-links a:hover, .sf-links a:focus-visible { color: var(--accent); }
+.site-footer p { margin: .3rem 0; }
+.login-footer { color: var(--muted) !important; opacity: 1 !important; }
+.menu-btn:focus { outline: none; }
+.menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.login-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 </style>
 <body>
 
@@ -1907,13 +2015,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <!-- Error -->
     <div class="login-error" id="loginError"></div>
 
-    <p class="login-footer">By continuing, you agree to use StudyLens AI for educational purposes only.<br/>Your data is private and secure.</p>
+    <p class="login-footer">By continuing, you agree to our <a href="#terms" data-sl="terms">Terms of Use</a> and <a href="#privacy" data-sl="privacy">Privacy Policy</a>.</p>
   </div>
 </div>
 <!-- ── END LOGIN GATE ── -->
 
 <div class="lang-bar">
+  <div class="logo-group">
+  <button class="menu-btn" id="menuBtn" onclick="openMenu()" aria-label="Menu" aria-expanded="false" aria-controls="slDrawer"><svg class="sl-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   <div class="logo-text"><img src="/studylens-logo.svg" alt="" width="26" height="26" style="width:26px;height:26px;border-radius:7px;display:block;flex:none"/>StudyLens <span class="logo-ai-badge">AI</span></div>
+  </div>
   <div class="lang-bar-right">
     <button class="auth-btn" id="authBtn" onclick="handleAuthClick()">
       <img class="auth-avatar" id="authAvatar" src="" alt=""/>
@@ -2299,7 +2410,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <div class="tip"><span class="tip-icon">📷</span><span id="tip3">Works with printed books, handwritten notes, and worksheets.</span></div>
   </div>
 
-  <div class="footer-note" id="footerNote">Made for students, parents &amp; learners in Assam 🌿<br/>Built by <a href="https://sahnawaz-portfolio.vercel.app" target="_blank" class="footer-dev-link">Sahnawaz Ahmed Laskar</a> · Full Stack Developer &amp; UI/UX Designer</div>
+  <footer class="site-footer" id="footerNote"></footer>
 
 </div>
 
@@ -2308,6 +2419,278 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <span class="voice-toast-dot"></span>
   <span id="voiceToastText">Listening…</span>
 </div>
+
+<!-- Side menu and full pages -->
+<div class="sl-scrim" id="slScrim" onclick="slClose()"></div>
+<aside class="sl-drawer" id="slDrawer" aria-label="Menu"></aside>
+<section class="sl-page" id="slPage" role="dialog" aria-modal="true" aria-labelledby="slPageTitle">
+  <div class="sl-page-bar">
+    <button class="sl-icon-btn sl-back" onclick="slClose()" aria-label="Back"><svg class="sl-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+    <h2 id="slPageTitle"></h2>
+  </div>
+  <div class="sl-page-body"><div class="sl-page-in"></div></div>
+</section>
+<script>
+// ── App shell: theme, side menu, pages and footer ────────────────
+var SL_TEXT = {"en":{"menu":"Menu","close":"Close","back":"Back","home":"Home","study":"Study","app":"App","legal":"Legal","history":"History","bookmarks":"Bookmarks","progress":"My progress","settings":"Settings","about":"About","privacy":"Privacy Policy","terms":"Terms of Use","licence":"MIT Licence","share":"Share StudyLens","signOut":"Sign out","darkMode":"Dark mode","appearance":"Appearance","theme":"Theme","system":"Device","light":"Light","dark":"Dark","language":"Language","reading":"Reading","textSize":"Answer text size","small":"Small","normal":"Normal","large":"Large","motion":"Reduce animations","motionHint":"Keeps the app calm and can feel faster on older phones.","data":"Your data","clearHistory":"Clear saved answers","clearHint":"Removes the saved answers for the active profile.","account":"Account","version":"Version","tagline":"Made for students, parents and learners in Assam","disclaimer":"AI answers can contain mistakes. Please check important work with your teacher or textbook.","rights":"Released under the MIT Licence.","copied":"Link copied","aboutIntro":"StudyLens AI is a study helper for students from KG to Class 12. Choose your board, class and subject, then type a question or add a photo to get a clear, step-by-step answer.","offerTitle":"What you can do","offers":["Follow SEBA, AHSEC, CBSE and ICSE syllabi","Get answers in English, Bengali, Hindi and Assamese","Ask from a photo of a book or worksheet","See maths, chemical equations, diagrams and molecule structures","Listen to answers read aloud","Practise with quick quizzes","Bookmark answers and track your progress","Keep separate profiles for each child in the family"]},"bn":{"menu":"মেনু","close":"বন্ধ করুন","back":"ফিরে যান","home":"হোম","study":"পড়াশোনা","app":"অ্যাপ","legal":"আইনি তথ্য","history":"ইতিহাস","bookmarks":"বুকমার্ক","progress":"আমার অগ্রগতি","settings":"সেটিংস","about":"পরিচিতি","privacy":"গোপনীয়তা নীতি","terms":"ব্যবহারের শর্তাবলি","licence":"MIT লাইসেন্স","share":"StudyLens শেয়ার করুন","signOut":"সাইন আউট","darkMode":"ডার্ক মোড","appearance":"চেহারা","theme":"থিম","system":"ডিভাইস","light":"লাইট","dark":"ডার্ক","language":"ভাষা","reading":"পড়া","textSize":"উত্তরের লেখার আকার","small":"ছোট","normal":"সাধারণ","large":"বড়","motion":"অ্যানিমেশন কমান","motionHint":"অ্যাপটি শান্ত থাকে এবং পুরোনো ফোনে দ্রুত মনে হতে পারে।","data":"আপনার তথ্য","clearHistory":"সংরক্ষিত উত্তর মুছুন","clearHint":"সক্রিয় প্রোফাইলের সংরক্ষিত উত্তরগুলি মুছে দেয়।","account":"অ্যাকাউন্ট","version":"সংস্করণ","tagline":"অসমের শিক্ষার্থী, অভিভাবক ও শিক্ষানুরাগীদের জন্য তৈরি","disclaimer":"AI-এর উত্তরে ভুল থাকতে পারে। গুরুত্বপূর্ণ কাজ শিক্ষক বা পাঠ্যবইয়ের সঙ্গে মিলিয়ে নিন।","rights":"MIT লাইসেন্সের অধীনে প্রকাশিত।","copied":"লিংক কপি হয়েছে","aboutIntro":"StudyLens AI হল KG থেকে দ্বাদশ শ্রেণির শিক্ষার্থীদের জন্য একটি পড়াশোনার সহায়ক। আপনার বোর্ড, শ্রেণি ও বিষয় বেছে নিন, তারপর প্রশ্ন লিখুন বা ছবি যোগ করুন এবং ধাপে ধাপে স্পষ্ট উত্তর পান।","offerTitle":"আপনি যা করতে পারেন","offers":["SEBA, AHSEC, CBSE ও ICSE পাঠ্যক্রম অনুসরণ করুন","ইংরেজি, বাংলা, হিন্দি ও অসমীয়ায় উত্তর পান","বই বা ওয়ার্কশিটের ছবি থেকে প্রশ্ন করুন","গণিত, রাসায়নিক সমীকরণ, চিত্র ও অণুর গঠন দেখুন","উত্তর জোরে পড়ে শুনুন","ছোট কুইজ দিয়ে অনুশীলন করুন","উত্তর বুকমার্ক করুন ও অগ্রগতি দেখুন","পরিবারের প্রতিটি শিশুর জন্য আলাদা প্রোফাইল রাখুন"]},"hi":{"menu":"मेनू","close":"बंद करें","back":"वापस","home":"होम","study":"पढ़ाई","app":"ऐप","legal":"कानूनी जानकारी","history":"इतिहास","bookmarks":"बुकमार्क","progress":"मेरी प्रगति","settings":"सेटिंग्स","about":"परिचय","privacy":"गोपनीयता नीति","terms":"उपयोग की शर्तें","licence":"MIT लाइसेंस","share":"StudyLens साझा करें","signOut":"साइन आउट","darkMode":"डार्क मोड","appearance":"रूप","theme":"थीम","system":"डिवाइस","light":"लाइट","dark":"डार्क","language":"भाषा","reading":"पढ़ना","textSize":"उत्तर के अक्षरों का आकार","small":"छोटा","normal":"सामान्य","large":"बड़ा","motion":"एनिमेशन कम करें","motionHint":"ऐप शांत रहता है और पुराने फ़ोन पर तेज़ लग सकता है।","data":"आपका डेटा","clearHistory":"सहेजे गए उत्तर मिटाएँ","clearHint":"सक्रिय प्रोफ़ाइल के सहेजे गए उत्तर हटाता है।","account":"खाता","version":"संस्करण","tagline":"असम के छात्रों, अभिभावकों और सीखने वालों के लिए","disclaimer":"AI के उत्तरों में गलतियाँ हो सकती हैं। ज़रूरी काम अपने शिक्षक या पाठ्यपुस्तक से जाँच लें।","rights":"MIT लाइसेंस के तहत जारी।","copied":"लिंक कॉपी हो गया","aboutIntro":"StudyLens AI, KG से कक्षा 12 तक के छात्रों के लिए पढ़ाई का सहायक है। अपना बोर्ड, कक्षा और विषय चुनें, फिर प्रश्न लिखें या फ़ोटो जोड़ें और चरण-दर-चरण स्पष्ट उत्तर पाएँ।","offerTitle":"आप क्या कर सकते हैं","offers":["SEBA, AHSEC, CBSE और ICSE पाठ्यक्रम के अनुसार पढ़ें","अंग्रेज़ी, बंगाली, हिंदी और असमिया में उत्तर पाएँ","किताब या वर्कशीट की फ़ोटो से प्रश्न पूछें","गणित, रासायनिक समीकरण, चित्र और अणु संरचनाएँ देखें","उत्तर सुनें","छोटी क्विज़ से अभ्यास करें","उत्तर बुकमार्क करें और प्रगति देखें","परिवार के हर बच्चे के लिए अलग प्रोफ़ाइल रखें"]},"as":{"menu":"মেনু","close":"বন্ধ কৰক","back":"উভতি যাওক","home":"হোম","study":"পঢ়া-শুনা","app":"এপ","legal":"আইনী তথ্য","history":"ইতিহাস","bookmarks":"বুকমাৰ্ক","progress":"মোৰ অগ্ৰগতি","settings":"ছেটিংছ","about":"পৰিচয়","privacy":"গোপনীয়তা নীতি","terms":"ব্যৱহাৰৰ চৰ্তাৱলী","licence":"MIT অনুজ্ঞাপত্ৰ","share":"StudyLens শ্বেয়াৰ কৰক","signOut":"ছাইন আউট","darkMode":"ডাৰ্ক মোড","appearance":"ৰূপ","theme":"থিম","system":"ডিভাইচ","light":"লাইট","dark":"ডাৰ্ক","language":"ভাষা","reading":"পঢ়া","textSize":"উত্তৰৰ আখৰৰ আকাৰ","small":"সৰু","normal":"সাধাৰণ","large":"ডাঙৰ","motion":"এনিমেচন কমাওক","motionHint":"এপটো শান্ত হৈ থাকে আৰু পুৰণি ফোনত দ্ৰুত অনুভৱ হ'ব পাৰে।","data":"আপোনাৰ তথ্য","clearHistory":"সংৰক্ষিত উত্তৰ মচক","clearHint":"সক্ৰিয় প্ৰফাইলৰ সংৰক্ষিত উত্তৰবোৰ আঁতৰায়।","account":"একাউণ্ট","version":"সংস্কৰণ","tagline":"অসমৰ শিক্ষাৰ্থী, অভিভাৱক আৰু শিকাৰুসকলৰ বাবে","disclaimer":"AIৰ উত্তৰত ভুল থাকিব পাৰে। গুৰুত্বপূৰ্ণ কাম শিক্ষক বা পাঠ্যপুথিৰ সৈতে মিলাই চাওক।","rights":"MIT অনুজ্ঞাপত্ৰৰ অধীনত প্ৰকাশিত।","copied":"লিংক কপি হ'ল","aboutIntro":"StudyLens AI হৈছে KGৰ পৰা দ্বাদশ শ্ৰেণীলৈকে শিক্ষাৰ্থীৰ বাবে এক অধ্যয়ন সহায়ক। আপোনাৰ ব'ৰ্ড, শ্ৰেণী আৰু বিষয় বাছনি কৰক, তাৰ পিছত প্ৰশ্ন লিখক বা ফটো যোগ কৰক আৰু খোজে খোজে স্পষ্ট উত্তৰ লাভ কৰক।","offerTitle":"আপুনি কি কৰিব পাৰে","offers":["SEBA, AHSEC, CBSE আৰু ICSE পাঠ্যক্ৰম অনুসৰণ কৰক","ইংৰাজী, বাংলা, হিন্দী আৰু অসমীয়াত উত্তৰ পাওক","কিতাপ বা ৱৰ্কশ্বীটৰ ফটোৰ পৰা প্ৰশ্ন কৰক","গণিত, ৰাসায়নিক সমীকৰণ, চিত্ৰ আৰু অণুৰ গঠন চাওক","উত্তৰ পঢ়ি শুনাওক","সৰু কুইজৰে অনুশীলন কৰক","উত্তৰ বুকমাৰ্ক কৰক আৰু অগ্ৰগতি চাওক","পৰিয়ালৰ প্ৰতিটো শিশুৰ বাবে পৃথক প্ৰফাইল ৰাখক"]}};
+var SL_LICENCE = "MIT License\n\nCopyright (c) 2026 StudyLens AI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n";
+var SL_VERSION = '1.0.0';
+var SL_PAGES = ['about', 'settings', 'privacy', 'terms', 'licence'];
+var SL_ICON = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  next: '<path d="m9 18 6-6-6-6"/>',
+  home: '<path d="m3 11 9-8 9 8"/><path d="M5 9.5V21h14V9.5M10 21v-6h4v6"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/>',
+  bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  progress: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+  settings: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  privacy: '<path d="M12 3 5 6v5c0 4.6 3 8.4 7 10 4-1.6 7-5.4 7-10V6z"/>',
+  terms: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/>',
+  licence: '<path d="M12 3v18M6 21h12M4 7h16M4 7l-2 7a4 4 0 0 0 4 0zM20 7l-2 7a4 4 0 0 0 4 0z"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+  moon: '<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>',
+  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'
+};
+var slLayer = null;
+function slIcon(name) { return '<svg class="sl-ic" viewBox="0 0 24 24" aria-hidden="true">' + SL_ICON[name] + '</svg>'; }
+function slT() { return SL_TEXT[typeof currentLang === 'string' ? currentLang : 'en'] || SL_TEXT.en; }
+function slGet(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch (_) { return fallback; } }
+function slSet(key, value) { try { localStorage.setItem(key, value); } catch (_) {} }
+function slEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function slUser() { return typeof currentUser !== 'undefined' ? currentUser : null; }
+
+// Theme
+function slResolve(mode) {
+  if (mode !== 'system') return mode;
+  return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+function slApplyTheme(mode) {
+  const theme = slResolve(mode);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('metaThemeColor')?.setAttribute('content', theme === 'light' ? '#ffffff' : '#0f1117');
+}
+function slSetTheme(mode) { slSet('studylens_theme', mode); slApplyTheme(mode); }
+
+// Footer
+function renderFooter() {
+  const x = slT(), el = document.getElementById('footerNote');
+  if (!el) return;
+  const links = ['about', 'settings', 'privacy', 'terms', 'licence'].map(p => `<a href="#${p}" data-sl="${p}">${slEsc(x[p])}</a>`).join('');
+  el.innerHTML = `<div class="sf-brand"><img src="/studylens-logo.svg" alt="" width="34" height="34"/><div><b>StudyLens AI</b>${slEsc(x.tagline)}</div></div>
+    <nav class="sf-links" aria-label="${slEsc(x.legal)}">${links}</nav>
+    <p>${slEsc(x.disclaimer)}</p>
+    <p>© ${new Date().getFullYear()} StudyLens AI. ${slEsc(x.rights)} ${slEsc(x.version)} ${SL_VERSION}</p>`;
+}
+
+// Side menu
+function renderMenu() {
+  const x = slT(), user = slUser(), el = document.getElementById('slDrawer');
+  const item = (act, val, icon, label, cls) => `<button class="sl-item${cls ? ' ' + cls : ''}" data-act="${act}" data-val="${val}">${slIcon(icon)}<span>${slEsc(label)}</span></button>`;
+  const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+  el.innerHTML = `<div class="sl-drawer-head"><img src="/studylens-logo.svg" alt="" width="40" height="40"/>
+      <div class="sl-drawer-who"><b>StudyLens AI</b><span>${slEsc(user ? (user.displayName || user.email) : x.tagline)}</span></div>
+      <button class="sl-icon-btn" data-act="close" aria-label="${slEsc(x.close)}">${slIcon('x')}</button></div>
+    <div class="sl-drawer-list">
+      ${item('home', '', 'home', x.home)}
+      <div class="sl-group">${slEsc(x.study)}</div>
+      ${item('hist', 'all', 'history', x.history)}
+      ${item('hist', 'bookmarks', 'bookmark', x.bookmarks)}
+      ${item('hist', 'insights', 'progress', x.progress)}
+      <div class="sl-group">${slEsc(x.app)}</div>
+      ${item('page', 'settings', 'settings', x.settings)}
+      <button class="sl-item" role="switch" aria-checked="${dark}" data-act="dark">${slIcon('moon')}<span>${slEsc(x.darkMode)}</span><span class="sl-switch"></span></button>
+      ${item('share', '', 'share', x.share)}
+      ${item('page', 'about', 'about', x.about)}
+      <div class="sl-group">${slEsc(x.legal)}</div>
+      ${item('page', 'privacy', 'privacy', x.privacy)}
+      ${item('page', 'terms', 'terms', x.terms)}
+      ${item('page', 'licence', 'licence', x.licence)}
+      ${user ? '<div class="sl-group"></div>' + item('signout', '', 'out', x.signOut, 'danger') : ''}
+    </div>`;
+}
+
+// Pages
+function slSeg(act, value, options) {
+  return `<div class="sl-seg" role="group">${options.map(([v, label]) => `<button data-act="${act}" data-val="${v}" aria-pressed="${v === value}">${slEsc(label)}</button>`).join('')}</div>`;
+}
+function slSettings() {
+  const x = slT(), user = slUser(), motionOff = slGet('studylens_motion', 'on') === 'off';
+  return `<p class="sl-section">${slEsc(x.appearance)}</p><div class="sl-card">
+      <div class="sl-row"><div class="sl-row-t">${slEsc(x.theme)}</div>${slSeg('theme', slGet('studylens_theme', 'dark'), [['system', x.system], ['light', x.light], ['dark', x.dark]])}</div>
+      <div class="sl-row"><div class="sl-row-t">${slEsc(x.language)}</div>${slSeg('lang', typeof currentLang === 'string' ? currentLang : 'en', [['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिंदी'], ['as', 'অসমীয়া']])}</div>
+    </div>
+    <p class="sl-section">${slEsc(x.reading)}</p><div class="sl-card">
+      <div class="sl-row"><div class="sl-row-t">${slEsc(x.textSize)}</div>${slSeg('text', slGet('studylens_text', 'normal'), [['small', x.small], ['normal', x.normal], ['large', x.large]])}</div>
+      <button class="sl-toggle" role="switch" aria-checked="${motionOff}" data-act="motion"><span><span class="sl-row-t">${slEsc(x.motion)}</span><br/><span class="sl-row-s">${slEsc(x.motionHint)}</span></span><span class="sl-switch"></span></button>
+    </div>
+    <p class="sl-section">${slEsc(x.data)}</p><div class="sl-card">
+      <button class="sl-link danger" data-act="clear"><span>${slEsc(x.clearHistory)}<br/><span class="sl-row-s">${slEsc(x.clearHint)}</span></span></button>
+    </div>
+    ${user ? `<p class="sl-section">${slEsc(x.account)}</p><div class="sl-card">
+      <div class="sl-row"><div class="sl-row-t">${slEsc(user.displayName || 'StudyLens')}</div><div class="sl-row-s">${slEsc(user.email)}</div></div>
+      <button class="sl-link danger" data-act="signout">${slEsc(x.signOut)}</button></div>` : ''}
+    <div class="sl-card">
+      <button class="sl-link" data-act="page" data-val="about">${slEsc(x.about)}${slIcon('next')}</button>
+      <button class="sl-link" data-act="page" data-val="privacy">${slEsc(x.privacy)}${slIcon('next')}</button>
+      <button class="sl-link" data-act="page" data-val="terms">${slEsc(x.terms)}${slIcon('next')}</button>
+      <button class="sl-link" data-act="page" data-val="licence">${slEsc(x.licence)}${slIcon('next')}</button>
+    </div>
+    <p class="sl-muted" style="text-align:center">StudyLens AI · ${slEsc(x.version)} ${SL_VERSION}</p>`;
+}
+function slAbout() {
+  const x = slT();
+  return `<div class="sl-about-head"><img src="/studylens-logo.svg" alt="StudyLens AI logo" width="76" height="76"/><h3>StudyLens AI</h3><p class="sl-muted">${slEsc(x.version)} ${SL_VERSION}</p></div>
+    <p>${slEsc(x.aboutIntro)}</p>
+    <h3>${slEsc(x.offerTitle)}</h3><ul>${x.offers.map(o => `<li>${slEsc(o)}</li>`).join('')}</ul>
+    <p class="sl-muted" style="margin-top:1rem">${slEsc(x.disclaimer)}</p>
+    <div class="sl-card">
+      <button class="sl-link" data-act="page" data-val="privacy">${slEsc(x.privacy)}${slIcon('next')}</button>
+      <button class="sl-link" data-act="page" data-val="terms">${slEsc(x.terms)}${slIcon('next')}</button>
+      <button class="sl-link" data-act="page" data-val="licence">${slEsc(x.licence)}${slIcon('next')}</button>
+    </div>
+    <p class="sl-muted" style="text-align:center">© ${new Date().getFullYear()} StudyLens AI. ${slEsc(x.tagline)}.</p>`;
+}
+function slPrivacy() {
+  return `<p class="sl-muted">Last updated: 5 November 2026</p>
+    <p>This policy explains what StudyLens AI collects, why, and the choices you have.</p>
+    <h3>What we collect</h3><ul>
+      <li><b>Account details:</b> your name, email address and profile picture from Google sign-in.</li>
+      <li><b>Study content:</b> the questions you type or speak, photos you add, your board, class and subject, and the answers you receive.</li>
+      <li><b>Things you create:</b> saved answers, bookmarks, folders and family profiles.</li>
+      <li><b>Settings:</b> your theme, language and text size stay on your device.</li></ul>
+    <h3>How we use it</h3><ul>
+      <li>To answer your questions and read answers aloud.</li>
+      <li>To keep your history and profiles in step across your devices.</li>
+      <li>To apply fair-use limits, prevent misuse and improve answer quality.</li></ul>
+    <p>We do not sell your personal information.</p>
+    <h3>Review of questions and photos</h3>
+    <p>Questions are stored with your account. Photos you add are also stored, and the app's administrator can review questions and photos to check quality and prevent misuse. Please avoid sharing photos that show faces, addresses or other personal details.</p>
+    <h3>Services we rely on</h3><ul>
+      <li><b>Google:</b> sign-in, data storage (Firebase), AI answers (Gemini) and read-aloud voice.</li>
+      <li><b>Groq:</b> AI answers.</li>
+      <li><b>Upstash:</b> a short-term store that keeps common answers for up to 24 hours so replies are faster.</li>
+      <li><b>Vercel:</b> website hosting.</li></ul>
+    <p>Your questions and photos are sent to these services only as needed to provide the app.</p>
+    <h3>Children</h3>
+    <p>StudyLens AI is made for school students. Younger children should use it with the permission and help of a parent, guardian or teacher.</p>
+    <h3>Your choices</h3><ul>
+      <li>Clear saved answers from Settings. This removes them from the active profile.</li>
+      <li>Photos already stored for review are not removed by clearing saved answers.</li>
+      <li>Sign out at any time from the menu.</li></ul>
+    <h3>Changes</h3>
+    <p>We may update this policy as the app changes. The date above shows the latest version.</p>`;
+}
+function slTerms() {
+  return `<p class="sl-muted">Last updated: 5 November 2026</p>
+    <p>By using StudyLens AI, you agree to these terms.</p>
+    <h3>Educational use</h3>
+    <p>StudyLens AI helps you learn. Use it to understand your work, and follow the rules of your school, board or examination.</p>
+    <h3>AI answers can be wrong</h3>
+    <p>Answers, diagrams and structures are produced by artificial intelligence and can contain mistakes. Please check important work with a teacher or textbook. Do not rely on the app for medical, legal, financial or safety decisions.</p>
+    <h3>Your account</h3>
+    <p>You are responsible for activity on your account. A parent or guardian should supervise younger children.</p>
+    <h3>Acceptable use</h3><ul>
+      <li>Do not upload harmful, unlawful or private content about other people.</li>
+      <li>Do not try to disrupt the service, get around its limits or misuse it automatically.</li></ul>
+    <h3>Availability</h3>
+    <p>The service is free to use and may change, pause or stop. Daily limits may apply.</p>
+    <h3>Disclaimer</h3>
+    <p>The service is provided "as is", without warranties of any kind, to the extent the law allows. StudyLens AI is not liable for losses that come from using it.</p>
+    <h3>Software licence</h3>
+    <p>The StudyLens AI software is released under the MIT Licence, shown on the licence page.</p>
+    <h3>Changes</h3>
+    <p>We may update these terms. Continuing to use the app means you accept the latest version.</p>`;
+}
+function slRenderPage(name) {
+  const x = slT(), page = document.getElementById('slPage');
+  page.querySelector('h2').textContent = x[name];
+  page.querySelector('.sl-back').setAttribute('aria-label', x.back);
+  const body = { about: slAbout, settings: slSettings, privacy: slPrivacy, terms: slTerms, licence: () => `<pre class="sl-licence">${slEsc(SL_LICENCE)}</pre>` }[name]();
+  page.querySelector('.sl-page-in').innerHTML = body;
+}
+
+// One layer at a time, tied to the phone's Back button
+function slPaint(layer) {
+  const drawer = document.getElementById('slDrawer'), scrim = document.getElementById('slScrim'), page = document.getElementById('slPage'), btn = document.getElementById('menuBtn');
+  const wasMenu = slLayer === 'menu';
+  slLayer = layer;
+  drawer.classList.toggle('open', layer === 'menu');
+  scrim.classList.toggle('open', layer === 'menu');
+  btn?.setAttribute('aria-expanded', String(layer === 'menu'));
+  const isPage = SL_PAGES.includes(layer);
+  page.classList.toggle('open', isPage);
+  document.body.classList.toggle('sl-lock', !!layer);
+  if (isPage) { slRenderPage(layer); page.querySelector('.sl-page-body').scrollTop = 0; page.querySelector('.sl-back').focus({ preventScroll: true }); }
+  if (layer === 'menu') { renderMenu(); drawer.querySelector('.sl-icon-btn').focus({ preventScroll: true }); }
+  else if (wasMenu && !layer) btn?.focus({ preventScroll: true });
+}
+function slOpen(layer) {
+  const url = layer === 'menu' ? location.pathname + location.search : '#' + layer;
+  history[slLayer ? 'replaceState' : 'pushState']({ sl: layer }, '', url);
+  slPaint(layer);
+}
+function slClose() { if (slLayer) history.back(); }
+function slAfterClose(fn) {
+  if (!slLayer) return fn();
+  window.addEventListener('popstate', () => setTimeout(fn, 30), { once: true });
+  history.back();
+}
+function openMenu() { slOpen('menu'); }
+function slOpenHist(tab) {
+  const sheet = document.getElementById('histSheet');
+  if (!sheet.classList.contains('open')) toggleHistSheet();
+  switchHistTab(tab);
+}
+async function slShare() {
+  const data = { title: 'StudyLens AI', text: slT().tagline, url: location.origin };
+  try {
+    if (navigator.share) await navigator.share(data);
+    else { await navigator.clipboard.writeText(data.url); showProfileToast(slT().copied); }
+  } catch (_) {}
+}
+function slAction(act, val) {
+  switch (act) {
+    case 'close': return slClose();
+    case 'home': return slAfterClose(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    case 'hist': return slAfterClose(() => slOpenHist(val));
+    case 'page': return slOpen(val);
+    case 'share': return slAfterClose(slShare);
+    case 'signout': return slAfterClose(handleAuthClick);
+    case 'dark': slSetTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); return renderMenu();
+    case 'theme': slSetTheme(val); return slRenderPage('settings');
+    case 'lang': setLang(val); return slRenderPage('settings');
+    case 'text':
+      slSet('studylens_text', val); document.documentElement.setAttribute('data-text', val);
+      return slRenderPage('settings');
+    case 'motion': {
+      const next = slGet('studylens_motion', 'on') === 'off' ? 'on' : 'off';
+      slSet('studylens_motion', next); document.documentElement.setAttribute('data-motion', next);
+      return slRenderPage('settings');
+    }
+    case 'clear': return clearAllHistory();
+  }
+}
+document.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]');
+  if (act && act.closest('#slDrawer, #slPage')) return slAction(act.dataset.act, act.dataset.val);
+  const link = e.target.closest('a[data-sl]');
+  if (link) { e.preventDefault(); slOpen(link.dataset.sl); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && slLayer) slClose(); });
+window.addEventListener('popstate', e => slPaint(e.state && e.state.sl || null));
+if (window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => {
+  if (slGet('studylens_theme', 'dark') === 'system') slApplyTheme('system');
+});
+slApplyTheme(slGet('studylens_theme', 'dark'));
+renderFooter();
+if (SL_PAGES.includes(location.hash.slice(1))) {
+  const start = location.hash.slice(1);
+  history.replaceState(null, '', location.pathname + location.search);
+  slOpen(start);
+}
+</script>
 
 <!-- Firebase fully inlined — no external file dependencies -->
 <script type="module">
@@ -3406,7 +3789,6 @@ const T = {
     tip1:'Type any question — theory, definition, formula, or concept.',
     tip2:'You can ask in Assamese, Bengali, Hindi, or English.',
     tip3:'Works with typed questions AND photos of books, notes & worksheets.',
-    footer:'Made for students, parents &amp; learners in Assam 🌿<br/>Built by <a href="https://sahnawaz-portfolio.vercel.app" target="_blank" class="footer-dev-link">Sahnawaz Ahmed Laskar</a> · Full Stack Developer &amp; UI/UX Designer',
     subs:{math:'Maths',science:'Science',eng1:'English 1',eng2:'English 2',bn1:'Bengali 1',bn2:'Bengali 2',hindi:'Hindi',evs:'EVS',sst:'SST',gk:'GK',computer:'Computer',moral:'Moral Sci.',history:'History',geo:'Geography',conv:'Conversation'},
   },
   bn:{
@@ -3431,7 +3813,6 @@ const T = {
     tip1:'যেকোনো তাত্ত্বিক প্রশ্ন, সংজ্ঞা বা সূত্র লিখে জিজ্ঞেস করো।',
     tip2:'অসমীয়া, বাংলায়, হিন্দিতে বা ইংরেজিতে প্রশ্ন করতে পারো।',
     tip3:'লেখা প্রশ্ন এবং বইয়ের ছবি — দুটোতেই কাজ করে।',
-    footer:'অসমের শিক্ষার্থী, অভিভাবক ও শিক্ষানুরাগীদের জন্য 🌿<br/>তৈরি করেছেন <a href="https://sahnawaz-portfolio.vercel.app" target="_blank" class="footer-dev-link">Sahnawaz Ahmed Laskar</a> · ফুল স্ট্যাক ডেভেলপার',
     subs:{math:'গণিত',science:'বিজ্ঞান',eng1:'ইংরেজি ১',eng2:'ইংরেজি ২',bn1:'বাংলা ১',bn2:'বাংলা ২',hindi:'হিন্দি',evs:'পরিবেশ বিদ্যা',sst:'সমাজবিজ্ঞান',gk:'সাধারণ জ্ঞান',computer:'কম্পিউটার',moral:'নৈতিক শিক্ষা',history:'ইতিহাস',geo:'ভূগোল',conv:'কথোপকথন'},
   },
   hi:{
@@ -3456,7 +3837,6 @@ const T = {
     tip1:'कोई भी थ्योरी सवाल, परिभाषा या फॉर्मूला टाइप करके पूछो।',
     tip2:'असमिया, हिंदी, बंगाली या अंग्रेजी में पूछ सकते हो।',
     tip3:'टाइप किए सवाल और किताब की फोटो — दोनों पर काम करता है।',
-    footer:'असम के छात्रों, माता-पिता और सीखने वालों के लिए 🌿<br/>निर्मित: <a href="https://sahnawaz-portfolio.vercel.app" target="_blank" class="footer-dev-link">Sahnawaz Ahmed Laskar</a> · फुल स्टैक डेवलपर',
     subs:{math:'गणित',science:'विज्ञान',eng1:'अंग्रेजी १',eng2:'अंग्रेजी २',bn1:'बंगाली १',bn2:'बंगाली २',hindi:'हिंदी',evs:'पर्यावरण',sst:'सामाजिक विज्ञान',gk:'सामान्य ज्ञान',computer:'कंप्यूटर',moral:'नैतिक शिक्षा',history:'इतिहास',geo:'भूगोल',conv:'बातचीत'},
   },
   as:{
@@ -3481,7 +3861,6 @@ const T = {
     tip1:'যিকোনো তাত্ত্বিক প্ৰশ্ন, সংজ্ঞা বা সূত্ৰ লিখি সুধা।',
     tip2:'অসমীয়া, বাংলা, হিন্দী বা ইংৰাজীত প্ৰশ্ন কৰিব পাৰা।',
     tip3:'লিখা প্ৰশ্ন আৰু কিতাপৰ ফটো — দুয়োটাতে কাম কৰে।',
-    footer:'অসমৰ শিক্ষাৰ্থী, অভিভাৱক আৰু শিকাৰুসকলৰ বাবে 🌿<br/>নিৰ্মাতা: <a href="https://sahnawaz-portfolio.vercel.app" target="_blank" class="footer-dev-link">Sahnawaz Ahmed Laskar</a> · ফুল স্টেক ডেভেলপাৰ',
     subs:{math:'গণিত',science:'বিজ্ঞান',eng1:'ইংৰাজী ১',eng2:'ইংৰাজী ২',bn1:'বাংলা ১',bn2:'বাংলা ২',hindi:'হিন্দী',evs:'পৰিবেশ বিদ্যা',sst:'সমাজ বিজ্ঞান',gk:'সাধাৰণ জ্ঞান',computer:'কম্পিউটাৰ',moral:'নৈতিক শিক্ষা',history:'ইতিহাস',geo:'ভূগোল',conv:'কথোপকথন'},
   }
 };
@@ -3982,7 +4361,7 @@ function applyLang(lang) {
   document.getElementById('tip1').textContent=t.tip1;
   document.getElementById('tip2').textContent=t.tip2;
   document.getElementById('tip3').textContent=t.tip3;
-  document.getElementById('footerNote').innerHTML=t.footer;
+  renderFooter();
   const geoBadgeEl = document.getElementById('geo-badge-text');
   if (geoBadgeEl && t.geoBadge) geoBadgeEl.textContent = t.geoBadge;
   document.getElementById('rtag-ai').textContent=t.aiTag;
