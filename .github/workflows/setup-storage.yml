@@ -1,0 +1,26 @@
+name: Set up photo storage
+
+# One-time job. Creates the Firebase Storage bucket, then publishes storage.rules.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Create bucket
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/setup-storage.mjs
+      - name: Publish rules
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/deploy-rules.mjs
