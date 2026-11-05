@@ -2085,6 +2085,10 @@ body.sl-lock { overflow: hidden; }
 .sl-del-label { display: block; margin: .8rem 0 0; font-size: .8rem; font-weight: 600; color: var(--muted); text-align: left; }
 .sl-dlg-acts button:disabled { opacity: .4; cursor: default; }
 #slDlg .sl-dlg { max-height: calc(100dvh - 2.5rem); overflow-y: auto; }
+.subj-head { grid-column: 1 / -1; padding: .35rem .15rem .05rem; font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.subj-head:first-child { padding-top: 0; }
+.subj-search { grid-column: 1 / -1; width: 100%; box-sizing: border-box; min-height: 42px; padding: .5rem .75rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 400 .88rem var(--font-body); }
+.subj-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>
 <body>
 <script src="/icons.js"></script>
@@ -4066,7 +4070,156 @@ const STREAMS = [
   { id: 'commerce', emoji: '💼', name: 'Commerce' },
 ];
 
-// Subject data by board + stream (or just class range for 1-10)
+// Subjects for each board, class and stream, from the 2026-27 curricula: ASSEB
+// (SCERT books, HSLC and HS), CBSE (NCERT, CBSE curriculum) and CISCE (ICSE and ISC
+// regulations; Classes 1-8 follow the usual pattern, as schools set these themselves).
+// A { head } item is a section title. Keep keys stable: chapters look up class_key.
+const SUBJECT_ICON = {
+  math:['🔢','Mathematics'], advmath:['📐','Advanced Mathematics'], appliedmath:['📐','Applied Mathematics'], stats:['📊','Statistics'],
+  science:['🔬','General Science'], physics:['⚛️','Physics'], chemistry:['🧪','Chemistry'], biology:['🧬','Biology'], biotech:['🔭','Biotechnology'],
+  evs:['🌿','EVS (Environmental Studies)'], envscience:['🌎','Environmental Science'], envedu:['🌿','Environmental Education'], geology:['⛰️','Geology'],
+  sst:['🗺️','Social Science'], history:['🏛️','History'], geo:['🧭','Geography'], polsci:['🗳️','Political Science'], economics:['💰','Economics'],
+  sociology:['👥','Sociology'], psychology:['🧠','Psychology'], anthropo:['🦴','Anthropology'], education:['📚','Education'], logic:['💡','Logic & Philosophy'],
+  legal:['⚖️','Legal Studies'], swadesh:['🏛️','Swadesh Adhyayan'], gstudies:['🌍','General Studies'], gk:['🌍','General Knowledge'], moral:['🙏','Moral Science / Value Education'],
+  accountancy:['📒','Accountancy'], bizstudies:['💼','Business Studies'], commerce:['💼','Commerce'], finance:['💵','Finance'], insurance:['🔐','Insurance'], banking:['🏦','Banking'],
+  salesmgmt:['🤝','Sales Management & Advertising'], costing:['📒','Costing & Taxation'], ecogeo:['🌐','Economic Geography'], entrep:['🚀','Entrepreneurship'], finlit:['💵','Financial Literacy'],
+  computer:['💻','Computer Science'], compapp:['💻','Computer Applications'], infoprac:['📱','Informatics Practices'], multimedia:['🖥️','Multimedia & Web Technology'], itites:['💻','IT / ITeS'],
+  ai:['🤖','Artificial Intelligence'], airobotics:['🤖','Artificial Intelligence & Robotics'], robotics:['🤖','Robotics'], ctai:['🤖','Computational Thinking & AI'], datasci:['📊','Data Science'], webapp:['🖥️','Web Application'],
+  homescience:['🏠','Home Science'], commscience:['🏠','Community Science (Home Science)'], artcraft:['🎨','Art & Craft'], finearts:['🎨','Fine Arts'], music:['🎵','Music'], dance:['🎵','Dance'], bihu:['🎵','Bihu'],
+  performing:['🎵','Performing Arts'], phyed:['🏃','Physical Education'], yoga:['🏃','Yoga'], ncc:['🎯','NCC'], supw:['🤝','SUPW & Community Service'], vocational:['🚀','Vocational Education'],
+  engraphics:['📐','Engineering Graphics'], techdraw:['📐','Technical Drawing'], engsci:['⚙️','Engineering Science'], electronics:['⚡','Electricity & Electronics'],
+  woodcraft:['🎨','Woodcraft'], garment:['🎨','Garment Designing'], weaving:['🎨','Weaving & Textile Design'], fashion:['🎨','Fashion Designing'], cookery:['🍳','Cookery'], massmedia:['📺','Mass Media & Communication'], hospitality:['🏠','Hospitality Management'],
+  retail:['💼','Retail Trade'], agri:['🌿','Agriculture & Horticulture'], dairy:['🌿','Agriculture Dairy Worker'], tourism:['🌐','Tourism & Hospitality'], health:['🩺','Health Care'], security:['🔐','Private Security'],
+  beauty:['🌟','Beauty & Wellness'], auto:['🚗','Automotive'], hardware:['⚡','Electronics & Hardware'], apparel:['🎨','Apparel & Home Furnishing'], telecom:['📱','Telecom'], food:['🍳','Food Processing'],
+  media:['📺','Media & Entertainment'], power:['⚡','Power'], bfsi:['🏦','Banking, Financial Services & Insurance'], signlang:['🤝','Sign Language'],
+  markets:['💵','Financial Markets'], frontoffice:['💼','Front Office Operations'], marketing:['🤝','Marketing & Sales'], bizelements:['💼','Elements of Business'], bookkeeping:['📒','Book Keeping & Accountancy'], painting:['🎨','Painting'],
+  ktpi:['🏛️','Knowledge Traditions of India'],
+};
+const LANGUAGE_MARK = { Assamese:'অ', Bengali:'বা', Hindi:'हि', Bodo:'ब', Sanskrit:'सं', Urdu:'ار', Nepali:'ने', Manipuri:'ম', Arabic:'ع', Persian:'ف', Karbi:'K', Garo:'G', Khasi:'K', Mizo:'M', Hmar:'H', Santhali:'S' };
+const LANGUAGE_KEY = { Assamese:'assamese', Bengali:'bengali', Hindi:'hindi', Bodo:'bodo', Sanskrit:'sanskrit', Arabic:'arabic' };
+const lang = (name, label) => ({ key: LANGUAGE_KEY[name] || 'lang_' + name.toLowerCase().replace(/\W+/g, ''), emoji: LANGUAGE_MARK[name] || name[0], subject: label || name, type: 'language' });
+const langs = (names, label) => names.map(n => lang(n, label ? label(n) : n));
+const subj = (key, label) => ({ key, emoji: SUBJECT_ICON[key][0], subject: label || SUBJECT_ICON[key][1] });
+const subjs = (...keys) => keys.map(k => Array.isArray(k) ? subj(k[0], k[1]) : subj(k));
+const eng = (label) => ({ key: 'eng', emoji: '🔤', subject: label || 'English', type: 'language' });
+const head = text => ({ head: text });
+const extra = (key, emoji, subject, type) => ({ key, emoji, subject, type });
+
+const ASSEB_MIL = ['Assamese','Bengali','Hindi','Bodo','Urdu','Manipuri','Nepali','Khasi','Garo','Mizo','Hmar','Karbi'];
+const ICSE_LANGUAGES = ['Assamese','Bengali','Hindi','Sanskrit','Manipuri','Nepali','Urdu','Mizo','Khasi','Garo','Ao Naga','Bhutia','Dzongkha','Gujarati','Kannada','Kashmiri','Kokborok','Lepcha','Malayalam','Marathi','Odia','Punjabi','Tamil','Tangkhul','Telugu','Tenyidie','French','German','Spanish'];
+const OTHER_SCHOOL = subjs('computer','gk','moral');
+
+function assebPrimary(id) {
+  return [
+    head('Language'), ...langs(['Assamese','Bengali','Bodo','Hindi','Manipuri','Garo']), eng(),
+    head('Main subjects'), ...subjs('math', ...(id === 'c1' ? [] : ['evs']), ['artcraft','Art Education'], 'phyed'),
+    head('Other subjects'), ...OTHER_SCHOOL,
+  ];
+}
+const assebMiddle = () => [
+  head('Language'), ...langs(['Assamese','Bengali','Bodo','Hindi','Manipuri','Garo','Sanskrit']), eng(),
+  head('Main subjects'), ...subjs('math','science','sst'), extra('geoassam','🧭','Geography of Assam'), extra('hisassam','🏛️','History of Assam'),
+  head('Skills and other subjects'), ...subjs(['artcraft','Art Education'],'phyed','vocational','computer','gk','moral'),
+];
+const assebSecondary = () => [
+  head('Modern Indian Language'), ...langs(ASSEB_MIL), ...langs(['Assamese','Hindi','Manipuri','Santhali'], n => n + ' (in lieu of MIL)').map(l => ({ ...l, key: l.key + '_il' })),
+  extra('engil','🔤','English (IL)','language'),
+  head('Core subjects'), eng(), ...subjs(['math','General Mathematics'],'science','sst'),
+  head('Social Science parts'), ...subjs('history','geo','polsci','economics'),
+  head('Elective subjects'), ...subjs('advmath','computer','airobotics','commerce','homescience',['finearts','Fine Art'],'music','dance',['phyed','Yoga & Physical Education'],'woodcraft','garment','weaving'),
+  ...langs(['Sanskrit','Arabic','Persian','Santhali']).map(l => ({ ...l, key: l.key === 'lang_santhali' ? 'lang_santhali_e' : l.key })),
+  ...['Assamese','Hindi','Manipuri','Nepali','Bengali','Bodo','Karbi'].map(n => ({ ...lang(n, n + ' (Elective)'), key: 'elective_' + n.toLowerCase() })),
+  head('Vocational (NSQF)'), ...subjs('retail','itites','agri','dairy','tourism','health','security','beauty','auto','hardware','apparel','telecom','food','media','power'),
+];
+const assebSenior = (id, core) => [
+  head('Compulsory'), eng(), extra('alteng','📝','Alternative English','language'),
+  ...subjs(...(id === 'c11' ? ['envedu'] : ['gstudies'])),
+  head('Modern Indian Language'), ...langs(ASSEB_MIL),
+  ...core,
+  head('Skill subjects (NSQF)'), ...subjs('itites','retail',['agri','Agriculture'],'health','hardware','beauty','tourism','auto','apparel',['phyed','Physical Education & Sports'],'food','media','power','telecom','security','bfsi','ai','signlang'),
+];
+const ASSEB_STREAM = {
+  science: () => [head('Science subjects'), ...subjs('physics','chemistry','biology','math','stats','geology','biotech',['computer','Computer Science & Application'],'geo','economics','logic','psychology','anthropo','commscience','multimedia',['entrep','Entrepreneurship Development'],'finlit'), lang('Sanskrit')],
+  arts: () => [
+    head('Arts subjects'), ...subjs('economics','polsci','history','education','geo','ecogeo','logic','psychology','sociology','anthropo','stats','math','commscience','swadesh',['computer','Computer Science & Application'],'multimedia',['entrep','Entrepreneurship Development']),
+    head('Advanced languages'), ...['Assamese','Bengali','Bodo','Hindi','Manipuri','Sanskrit'].map(n => ({ ...lang(n, 'Advance ' + n), key: 'adv_' + n.toLowerCase() })), ...langs(['Sanskrit','Arabic','Persian']), extra('lang_tai','T','Tai Language','language'),
+    head('Arts and performance'), ...subjs('finearts','bihu',['music','Music (Hindustani, Sattriya, Folk)']),
+  ],
+  commerce: () => [head('Commerce subjects'), ...subjs('accountancy','bizstudies','economics',['appliedmath','Business Mathematics & Statistics'],'math','stats','finance','insurance','banking','salesmgmt','costing','ecogeo',['entrep','Entrepreneurship Development'],'finlit',['computer','Computer Science & Application'],'multimedia')],
+};
+const ASSEB_VOCATIONAL = () => [head('Vocational stream')].concat(['Agri Engineering Technology','Accountancy & Auditing','Automobile Engineering Technology','Commercial Art','Commercial Garment Making & Designing','Computer Technique','Agricultural Science','Fishery Sciences','Electrical Mechanic','Electronics Mechanics','Mechanical Engineering Technology','Office Management','Office Secretaryship','Farm Machinery Repair & Maintenance','Textile Designing'].map((name, i) => extra('voc' + i, '🚀', name)));
+
+const CBSE_LANGS = ['Assamese','Bengali','Sanskrit','Urdu','Bodo','Manipuri','Nepali','French','German','Spanish'];
+const cbseFoundation = () => [
+  head('Language'), lang('Hindi'), eng(), ...langs(['Assamese','Bengali','Urdu']),
+  head('Main subjects'), ...subjs('math',['artcraft','Art Education'],['phyed','Physical Education & Well-being']),
+  head('Other subjects'), ...OTHER_SCHOOL,
+];
+const cbsePreparatory = () => [
+  head('Language'), eng(), lang('Hindi'), ...langs(['Assamese','Bengali','Urdu']),
+  head('Main subjects'), ...subjs('math',['evs','The World Around Us (EVS)'],['artcraft','Arts'],['phyed','Physical Education & Well-being'],'ctai'),
+  head('Other subjects'), ...OTHER_SCHOOL,
+];
+const cbseMiddle = () => [
+  head('Language'), eng(), ...langs(['Hindi','Sanskrit','Assamese','Bengali','Urdu','French','German']),
+  head('Main subjects'), ...subjs('math',['science','Science'],'sst'),
+  head('Skills and other subjects'), ...subjs(['artcraft','Arts'],['phyed','Physical Education & Well-being'],'vocational','ctai','computer','gk','moral'),
+];
+const CBSE_SKILLS = () => subjs(['itites','Information Technology'],'ai','compapp','homescience','painting','music','ncc','retail','markets','tourism','beauty','frontoffice','marketing','bizelements','bookkeeping');
+const cbseClass9 = () => [
+  head('Language'), eng(), ...langs(['Hindi', ...CBSE_LANGS]),
+  head('Main subjects'), ...subjs('math',['advmath','Mathematics Advanced'],['science','Science'],extraKey('scienceadv'),'sst'),
+  head('Social Science parts'), ...subjs('history','geo','polsci','economics'),
+  head('Skills and other subjects'), ...subjs(['artcraft','Art Education'],['phyed','Physical Education & Well-being'],'vocational'), ...CBSE_SKILLS(),
+];
+function extraKey(key) { SUBJECT_ICON[key] = SUBJECT_ICON[key] || ['🔬','Science Advanced']; return key; }
+const cbseClass10 = () => [
+  head('Language'), eng('English Language & Literature'), extra('engcomm','🔤','English Communicative','language'), lang('Hindi','Hindi Course A'), { ...lang('Hindi','Hindi Course B'), key: 'hindib' }, ...langs(CBSE_LANGS),
+  head('Main subjects'), ...subjs(['math','Mathematics Standard'],extra2('mathbasic','🔢','Mathematics Basic'),['science','Science'],'sst'),
+  head('Social Science parts'), ...subjs('history','geo','polsci','economics'),
+  head('Skill subjects'), ...CBSE_SKILLS(),
+];
+function extra2(key, emoji, label) { SUBJECT_ICON[key] = [emoji, label]; return key; }
+const seniorLanguages = () => [
+  head('Language'), eng('English Core'), extra('engelec','🔤','English Elective','language'), lang('Hindi','Hindi Core'), { ...lang('Hindi','Hindi Elective'), key: 'hindielec' },
+  lang('Sanskrit','Sanskrit Core'), { ...lang('Sanskrit','Sanskrit Elective'), key: 'sanskritelec' }, lang('Urdu','Urdu Core'), { ...lang('Urdu','Urdu Elective'), key: 'urduelec' },
+  ...langs(['Assamese','Bengali','Bodo','Manipuri','Nepali','Mizo','French','German','Japanese','Russian','Spanish']),
+];
+const CBSE_SKILL_SENIOR = () => [head('Skill subjects'), ...subjs('ai',['itites','Information Technology'],'webapp','datasci')];
+const CBSE_STREAM = {
+  science: () => [head('Science subjects'), ...subjs('physics','chemistry','math','appliedmath','biology','biotech','computer','infoprac','engraphics','phyed')],
+  arts: () => [head('Humanities subjects'), ...subjs('history','polsci','geo','psychology','sociology','economics','math','appliedmath','legal','ktpi','homescience','finearts','dance','music','phyed','ncc')],
+  commerce: () => [head('Commerce subjects'), ...subjs('accountancy','bizstudies','economics','math','appliedmath','entrep','infoprac','computer','legal','phyed')],
+};
+
+const icsePrimary = (id) => [
+  head('Language'), eng(), ...langs(['Hindi','Assamese','Bengali','Sanskrit']),
+  head('Main subjects'), ...subjs('math','evs', ...(['c3','c4','c5'].includes(id) ? [['science','Science'],['sst','Social Studies']] : [])),
+  head('Other subjects'), ...subjs(['computer','Computer Studies'],'artcraft','phyed','gk','moral'),
+];
+const icseMiddle = () => [
+  head('Language'), eng('English Language'), extra('englit','📝','English Literature','language'), ...langs(['Hindi','Assamese','Bengali','Sanskrit','French','German']),
+  head('Main subjects'), ...subjs('math','physics','chemistry','biology',['history','History & Civics'],'geo'),
+  head('Other subjects'), ...subjs(['computer','Computer Studies'],'artcraft','phyed','moral','gk','supw'),
+];
+const icseSecondary = () => [
+  head('Group I: compulsory'), eng('English'), ...langs(ICSE_LANGUAGES), ...subjs(['history','History & Civics'],'geo'),
+  head('Group II'), ...subjs('math','physics','chemistry','biology','economics',['commerce','Commercial Studies'],'envscience'), ...langs(['Arabic','Persian']).map(l => ({ ...l, subject: l.subject + ' (Classical)' })),
+  head('Group III: Section A'), ...subjs('compapp',extra2('ecoapp','💰','Economic Applications'),extra2('comapp','💼','Commercial Applications'),['artcraft','Art'],'performing','homescience','cookery','fashion','phyed','yoga','techdraw',extra2('envapp','🌿','Environmental Applications'),'massmedia','hospitality'),
+  head('Group III: Section B'), ...subjs(['airobotics','Robotics & Artificial Intelligence'],extra2('voc_beauty','🌟','Assistant Beauty Therapist'),extra2('voc_hair','🌟','Assistant Hair Stylist'),extra2('voc_data','💻','Basic Data Entry Operator'),extra2('voc_diet','🍳','Dietetic Aide'),extra2('voc_cash','💵','Cashier'),extra2('voc_early','🏃','Early Years Physical Activity Facilitator'),extra2('voc_auto','🚗','Auto Service Technician')),
+  head('Compulsory internal'), ...subjs('supw'),
+];
+const iscCommon = () => [head('Compulsory'), eng('English'), extra('engmod','🔤','Modern English','language'), ...subjs('supw')];
+const ISC_STREAM = {
+  science: () => [head('Science subjects'), ...subjs('physics','chemistry','biology','math','appliedmath','computer','biotech','electronics','engsci',extra2('gmd','📐','Geometrical & Mechanical Drawing'),'envscience','ai','robotics')],
+  commerce: () => [head('Commerce subjects'), ...subjs(['accountancy','Accounts'],'commerce','bizstudies','economics','math','appliedmath','computer','legal')],
+  arts: () => [
+    head('Humanities subjects'), ...subjs('history','polsci','geo','sociology','psychology','economics',extra2('electeng','🔤','Elective English'),'legal','massmedia','math','appliedmath'),
+    head('Languages'), ...langs(['Hindi','Assamese','Bengali','Sanskrit','Manipuri','Nepali','Urdu','Arabic','Persian','French','German','Spanish']),
+    head('Arts and applied subjects'), ...subjs(['finearts','Art'],'music','homescience','fashion','phyed','hospitality',extra2('gbd','📐','Geometrical & Building Drawing')),
+  ],
+};
+
 const SUBJECT_MAP = {
   // KG1 (Nursery/LKG) — age 3-4
   kg1: [
@@ -4077,10 +4230,7 @@ const SUBJECT_MAP = {
     {key:'evs',       emoji:'🌿', subject:'My World (EVS / General Awareness)'},
     {key:'rhymes',    emoji:'🎵', subject:'Nursery Rhymes & Oral Skills'},
     {key:'artcraft',  emoji:'🎨', subject:'Art & Craft / Drawing'},
-    {key:'hindi',     emoji:'हि', subject:'Hindi (Basic)'},
-    {key:'assamese',  emoji:'অ',  subject:'Assamese (Basic)'},
-    {key:'bengali',   emoji:'বা', subject:'Bengali (Basic)'},
-    {key:'bodo',      emoji:'ब',  subject:'Bodo (Basic)'},
+    lang('Hindi','Hindi (Basic)'), lang('Assamese','Assamese (Basic)'), lang('Bengali','Bengali (Basic)'), lang('Bodo','Bodo (Basic)'),
     {key:'lifeskills',emoji:'🌟', subject:'Life Skills & Habits'},
   ],
   // KG2 (UKG) — age 4-5
@@ -4093,214 +4243,52 @@ const SUBJECT_MAP = {
     {key:'gk',        emoji:'🌍', subject:'General Awareness / GK'},
     {key:'rhymes',    emoji:'🎵', subject:'Rhymes, Stories & Oral Skills'},
     {key:'artcraft',  emoji:'🎨', subject:'Art, Craft & Drawing'},
-    {key:'hindi',     emoji:'हि', subject:'Hindi'},
-    {key:'assamese',  emoji:'অ',  subject:'Assamese'},
-    {key:'bengali',   emoji:'বা', subject:'Bengali'},
-    {key:'bodo',      emoji:'ब',  subject:'Bodo'},
+    lang('Hindi'), lang('Assamese'), lang('Bengali'), lang('Bodo'),
     {key:'lifeskills',emoji:'🌟', subject:'Life Skills & Good Habits'},
-  ],
-  // ── Class 1–5 (Lower Primary / Primary) ──────────────────────────────────
-  // SCERT Assam LP school books: Mother tongue, English, Maths, EVS only.
-  primary: [
-    {key:'math',      emoji:'🔢', subject:'Mathematics'},
-    {key:'eng',       emoji:'🔤', subject:'English'},
-    {key:'assamese',  emoji:'অ',  subject:'Assamese'},
-    {key:'bengali',   emoji:'বা', subject:'Bengali'},
-    {key:'bodo',      emoji:'ब',  subject:'Bodo'},
-    {key:'hindi',     emoji:'हि', subject:'Hindi'},
-    {key:'evs',       emoji:'🌿', subject:'EVS (Environmental Studies)'},
-    {key:'artcraft',  emoji:'🎨', subject:'Art & Craft'},
-    {key:'moral',     emoji:'🙏', subject:'Moral Science / Value Education'},
-    {key:'gk',        emoji:'🌍', subject:'General Knowledge'},
-  ],
-  // ── Class 6–8 (Upper Primary / Middle School) ─────────────────────────────
-  // SEBA/SCERT: Maths, General Science, Social Science, English, MIL, Hindi,
-  // Computer Science, Sanskrit (optional).
-  upper_primary: [
-    {key:'math',      emoji:'🔢', subject:'Mathematics'},
-    {key:'science',   emoji:'🔬', subject:'General Science'},
-    {key:'sst',       emoji:'🗺️', subject:'Social Science'},
-    {key:'eng',       emoji:'🔤', subject:'English'},
-    {key:'assamese',  emoji:'অ',  subject:'Assamese'},
-    {key:'bengali',   emoji:'বা', subject:'Bengali'},
-    {key:'bodo',      emoji:'ब',  subject:'Bodo'},
-    {key:'hindi',     emoji:'हि', subject:'Hindi'},
-    {key:'sanskrit',  emoji:'🕉️', subject:'Sanskrit'},
-    {key:'computer',  emoji:'💻', subject:'Computer Science'},
-    {key:'artcraft',  emoji:'🎨', subject:'Art & Craft'},
-    {key:'moral',     emoji:'🙏', subject:'Moral Science'},
-    {key:'gk',        emoji:'🌍', subject:'General Knowledge'},
-  ],
-  // ── Class 9–10 (Secondary / SEBA HSLC) ───────────────────────────────────
-  // Core: English (C1), Gen. Maths (C2), Gen. Science (C3), Social Science (C4)
-  // Optional/elective: Advanced Maths, Computer, Sanskrit, Arabic, IT/ITES, Home Science
-  any_lower: [
-    {key:'math',       emoji:'🔢', subject:'Mathematics (General)'},
-    {key:'advmath',    emoji:'📐', subject:'Advanced Mathematics'},
-    {key:'science',    emoji:'🔬', subject:'General Science'},
-    {key:'sst',        emoji:'🗺️', subject:'Social Science'},
-    {key:'history',    emoji:'🏛️', subject:'History'},
-    {key:'geo',        emoji:'🧭', subject:'Geography'},
-    {key:'polsci',     emoji:'🗳️', subject:'Political Science'},
-    {key:'economics',  emoji:'💰', subject:'Economics'},
-    {key:'eng',        emoji:'🔤', subject:'English'},
-    {key:'assamese',   emoji:'অ',  subject:'Assamese (MIL)'},
-    {key:'bengali',    emoji:'বা', subject:'Bengali (MIL)'},
-    {key:'hindi',      emoji:'हि', subject:'Hindi (MIL)'},
-    {key:'computer',   emoji:'💻', subject:'Computer Science'},
-    {key:'sanskrit',   emoji:'🕉️', subject:'Sanskrit'},
-    {key:'arabic',     emoji:'📖', subject:'Arabic'},
-    {key:'homescience',emoji:'🏠', subject:'Home Science'},
-    {key:'itites',     emoji:'📟', subject:'IT / ITES (Vocational)'},
-  ],
-  asseb_science: [
-    {key:'eng',    emoji:'🔤', subject:'English'},
-    {key:'alteng', emoji:'📝', subject:'Alternative English'},
-    {key:'mil',    emoji:'অ',  subject:'MIL (Assamese/Bengali/Hindi)'},
-    {key:'physics',emoji:'⚛️', subject:'Physics'},
-    {key:'chemistry',emoji:'🧪',subject:'Chemistry'},
-    {key:'math',   emoji:'🔢', subject:'Mathematics'},
-    {key:'biology',emoji:'🧬', subject:'Biology'},
-    {key:'computer',emoji:'💻',subject:'Computer Science'},
-    {key:'envscience',emoji:'🌿',subject:'Environmental Science'},
-    {key:'biotech',emoji:'🔭', subject:'Biotechnology'},
-    {key:'stats',  emoji:'📊', subject:'Statistics'},
-  ],
-  asseb_arts: [
-    {key:'eng',       emoji:'🔤', subject:'English'},
-    {key:'alteng',    emoji:'📝', subject:'Alternative English'},
-    {key:'mil',       emoji:'অ',  subject:'MIL (Assamese/Bengali/Hindi)'},
-    {key:'history',   emoji:'🏛️', subject:'History'},
-    {key:'polsci',    emoji:'🗳️', subject:'Political Science'},
-    {key:'economics', emoji:'💰', subject:'Economics'},
-    {key:'geo',       emoji:'🧭', subject:'Geography'},
-    {key:'education', emoji:'📚', subject:'Education'},
-    {key:'psychology',emoji:'🧠', subject:'Psychology'},
-    {key:'sociology', emoji:'👥', subject:'Sociology'},
-    {key:'anthropo',  emoji:'🦴', subject:'Anthropology'},
-    {key:'logic',     emoji:'💡', subject:'Logic & Philosophy'},
-    {key:'math',      emoji:'🔢', subject:'Mathematics'},
-    {key:'stats',     emoji:'📊', subject:'Statistics'},
-    {key:'homescience',emoji:'🏠',subject:'Home Science (Community Science)'},
-    {key:'sanskrit',  emoji:'🕉️', subject:'Sanskrit Adhyayan'},
-    {key:'swadesh',   emoji:'🇮🇳', subject:'Swadesh Adhyayan'},
-  ],
-  asseb_commerce: [
-    {key:'eng',      emoji:'🔤', subject:'English'},
-    {key:'alteng',   emoji:'📝', subject:'Alternative English'},
-    {key:'mil',      emoji:'অ',  subject:'MIL (Assamese/Bengali/Hindi)'},
-    {key:'accountancy',emoji:'📒',subject:'Accountancy'},
-    {key:'bizstudies',emoji:'💼',subject:'Business Studies'},
-    {key:'economics',emoji:'💰', subject:'Economics'},
-    {key:'math',     emoji:'🔢', subject:'Mathematics/Business Maths'},
-    {key:'salesmgmt',emoji:'🤝', subject:'Sales Management & Advertising'},
-    {key:'insurance',emoji:'🔐', subject:'Insurance'},
-    {key:'banking',  emoji:'🏦', subject:'Banking'},
-    {key:'finance',  emoji:'💵', subject:'Finance'},
-    {key:'ecogeo',   emoji:'🌐', subject:'Economic Geography'},
-    {key:'computer', emoji:'💻', subject:'Computer Applications'},
-    {key:'multimedia',emoji:'🖥️',subject:'Multimedia & Web Technology'},
-    {key:'entrep',   emoji:'🚀', subject:'Entrepreneurship Development'},
-    {key:'stats',    emoji:'📊', subject:'Statistics'},
-  ],
-  cbse_science: [
-    {key:'eng',    emoji:'🔤', subject:'English'},
-    {key:'hindi',  emoji:'हि', subject:'Hindi'},
-    {key:'physics',emoji:'⚛️', subject:'Physics'},
-    {key:'chemistry',emoji:'🧪',subject:'Chemistry'},
-    {key:'math',   emoji:'🔢', subject:'Mathematics'},
-    {key:'biology',emoji:'🧬', subject:'Biology'},
-    {key:'computer',emoji:'💻',subject:'Computer Science'},
-    {key:'infoprac',emoji:'📱',subject:'Informatics Practices'},
-    {key:'biotech',emoji:'🔭', subject:'Biotechnology'},
-    {key:'phyed',  emoji:'🏃', subject:'Physical Education'},
-  ],
-  cbse_arts: [
-    {key:'eng',    emoji:'🔤', subject:'English'},
-    {key:'hindi',  emoji:'हि', subject:'Hindi'},
-    {key:'history',emoji:'🏛️', subject:'History'},
-    {key:'polsci', emoji:'🗳️', subject:'Political Science'},
-    {key:'economics',emoji:'💰',subject:'Economics'},
-    {key:'geo',    emoji:'🧭', subject:'Geography'},
-    {key:'psychology',emoji:'🧠',subject:'Psychology'},
-    {key:'sociology',emoji:'👥',subject:'Sociology'},
-    {key:'math',   emoji:'🔢', subject:'Mathematics'},
-    {key:'finearts',emoji:'🎨',subject:'Fine Arts'},
-    {key:'homescience',emoji:'🏠',subject:'Home Science'},
-    {key:'legal',  emoji:'⚖️', subject:'Legal Studies'},
-    {key:'phyed',  emoji:'🏃', subject:'Physical Education'},
-  ],
-  cbse_commerce: [
-    {key:'eng',    emoji:'🔤', subject:'English'},
-    {key:'hindi',  emoji:'हि', subject:'Hindi'},
-    {key:'accountancy',emoji:'📒',subject:'Accountancy'},
-    {key:'bizstudies',emoji:'💼',subject:'Business Studies'},
-    {key:'economics',emoji:'💰',subject:'Economics'},
-    {key:'math',   emoji:'🔢', subject:'Mathematics'},
-    {key:'infoprac',emoji:'📱',subject:'Informatics Practices'},
-    {key:'entrep', emoji:'🚀', subject:'Entrepreneurship'},
-    {key:'phyed',  emoji:'🏃', subject:'Physical Education'},
-  ],
-  // ── ICSE / ISC (Class 11–12) ─────────────────────────────────────────────
-  icse_science: [
-    {key:'eng',        emoji:'🔤', subject:'English'},
-    {key:'envedu',     emoji:'🌿', subject:'Environmental Education'},
-    {key:'physics',    emoji:'⚛️', subject:'Physics'},
-    {key:'chemistry',  emoji:'🧪', subject:'Chemistry'},
-    {key:'math',       emoji:'🔢', subject:'Mathematics'},
-    {key:'biology',    emoji:'🧬', subject:'Biology'},
-    {key:'computer',   emoji:'💻', subject:'Computer Science'},
-    {key:'envscience', emoji:'🌎', subject:'Environmental Science'},
-    {key:'biotech',    emoji:'🔭', subject:'Biotechnology'},
-    {key:'homescience',emoji:'🏠', subject:'Home Science'},
-    {key:'phyed',      emoji:'🏃', subject:'Physical Education'},
-  ],
-  icse_arts: [
-    {key:'eng',       emoji:'🔤', subject:'English'},
-    {key:'envedu',    emoji:'🌿', subject:'Environmental Education'},
-    {key:'history',   emoji:'🏛️', subject:'History'},
-    {key:'polsci',    emoji:'🗳️', subject:'Political Science'},
-    {key:'economics', emoji:'💰', subject:'Economics'},
-    {key:'geo',       emoji:'🧭', subject:'Geography'},
-    {key:'psychology',emoji:'🧠', subject:'Psychology'},
-    {key:'sociology', emoji:'👥', subject:'Sociology'},
-    {key:'finearts',  emoji:'🎨', subject:'Art & Craft'},
-    {key:'math',      emoji:'🔢', subject:'Mathematics'},
-    {key:'homescience',emoji:'🏠',subject:'Home Science'},
-    {key:'sanskrit',  emoji:'🕉️', subject:'Sanskrit'},
-    {key:'phyed',     emoji:'🏃', subject:'Physical Education'},
-  ],
-  icse_commerce: [
-    {key:'eng',         emoji:'🔤', subject:'English'},
-    {key:'envedu',      emoji:'🌿', subject:'Environmental Education'},
-    {key:'accountancy', emoji:'📒', subject:'Accounts'},
-    {key:'bizstudies',  emoji:'💼', subject:'Commerce'},
-    {key:'economics',   emoji:'💰', subject:'Economics'},
-    {key:'math',        emoji:'🔢', subject:'Mathematics'},
-    {key:'computer',    emoji:'💻', subject:'Computer Applications'},
-    {key:'entrep',      emoji:'🚀', subject:'Entrepreneurship'},
-    {key:'phyed',       emoji:'🏃', subject:'Physical Education'},
   ],
 };
 
+// The list for one board, class and stream
+function subjectsFor(boardId, classId, streamId) {
+  if (classId === 'kg1' || classId === 'kg2') return SUBJECT_MAP[classId];
+  const n = parseInt(classId.slice(1), 10);
+  if (boardId === 'cbse') {
+    if (n <= 2) return cbseFoundation();
+    if (n <= 5) return cbsePreparatory();
+    if (n <= 8) return cbseMiddle();
+    if (n === 9) return cbseClass9();
+    if (n === 10) return cbseClass10();
+    return streamId ? [...seniorLanguages(), ...CBSE_STREAM[streamId](), ...CBSE_SKILL_SENIOR()] : [];
+  }
+  if (boardId === 'icse') {
+    if (n <= 5) return icsePrimary(classId);
+    if (n <= 8) return icseMiddle();
+    if (n <= 10) return icseSecondary();
+    return streamId ? [...iscCommon(), ...ISC_STREAM[streamId]()] : [];
+  }
+  if (n <= 5) return assebPrimary(classId);
+  if (n <= 8) return assebMiddle();
+  if (n <= 10) return assebSecondary();
+  return streamId ? [...assebSenior(classId, ASSEB_STREAM[streamId]()), ...ASSEB_VOCATIONAL()] : [];
+}
+
+// Main subjects come first; the language list follows them.
+function languagesAfterMain(list) {
+  const sections = [];
+  list.forEach(item => {
+    if (item.head || !sections.length) sections.push([]);
+    sections[sections.length - 1].push(item);
+  });
+  const isLanguage = sec => ['Language', 'Modern Indian Language'].includes(sec[0].head);
+  const first = sections.findIndex(isLanguage), next = sections.findIndex(sec => sec[0].head && !isLanguage(sec) && sec[0].head !== 'Compulsory');
+  if (first < 0 || next < 0 || first > next) return list;
+  const langSection = sections.splice(first, 1)[0];
+  sections.splice(sections.findIndex(sec => sec[0].head && !isLanguage(sec) && sec[0].head !== 'Compulsory') + 1, 0, langSection);
+  return sections.flat();
+}
 function getSubjects() {
-  if (!selClass) return SUBJECT_MAP.any_lower;
-  if (selClass.id === 'kg1') return SUBJECT_MAP.kg1;
-  if (selClass.id === 'kg2') return SUBJECT_MAP.kg2;
-
-  // Class 1–5: Lower Primary — only core LP school subjects
-  const primaryIds      = ['c1','c2','c3','c4','c5'];
-  // Class 6–8: Upper Primary — full ME school subjects
-  const upperPrimaryIds = ['c6','c7','c8'];
-
-  if (primaryIds.includes(selClass.id))      return SUBJECT_MAP.primary;
-  if (upperPrimaryIds.includes(selClass.id)) return SUBJECT_MAP.upper_primary;
-  if (!isHigherSecondary())                  return SUBJECT_MAP.any_lower; // Class 9–10
-
-  const board  = selBoard ? selBoard.id : 'asseb';
-  const stream = selStream ? selStream.id : null;
-  if (!stream) return [];
-  return SUBJECT_MAP[`${board}_${stream}`] || SUBJECT_MAP.any_lower;
+  if (!selClass) return [];
+  return languagesAfterMain(subjectsFor(selBoard ? selBoard.id : 'asseb', selClass.id, selStream ? selStream.id : null));
 }
 
 const T = {
@@ -4621,7 +4609,28 @@ function pickStream(s) {
 function buildSubjGrid() {
   const g = document.getElementById('subjGrid'); g.innerHTML='';
   const subs = getSubjects();
+  const count = subs.filter(s => !s.head).length;
+  if (count > 24) {
+    const box = document.createElement('input');
+    box.className = 'subj-search';
+    box.type = 'search';
+    box.placeholder = 'Search ' + count + ' subjects…';
+    box.setAttribute('aria-label', 'Search subjects');
+    box.oninput = () => {
+      const word = box.value.trim().toLowerCase();
+      g.querySelectorAll('.subj-chip').forEach(c => { c.style.display = c.textContent.toLowerCase().includes(word) ? '' : 'none'; });
+      g.querySelectorAll('.subj-head').forEach(h => { h.style.display = word ? 'none' : ''; });
+    };
+    g.appendChild(box);
+  }
   subs.forEach(s => {
+    if (s.head) {
+      const title = document.createElement('div');
+      title.className = 'subj-head';
+      title.textContent = s.head;
+      g.appendChild(title);
+      return;
+    }
     const el = document.createElement('div');
     el.className = 'subj-chip' + (selSubj&&selSubj.key===s.key?' sel':'');
     el.innerHTML = `<span class="subj-emoji">${s.emoji}</span><span class="subj-name">${s.subject}</span>`;
@@ -5053,13 +5062,14 @@ async function askQuestion() {
     if (!subj) return 'general';
     const k = subj.key || '';
     const s = (subj.subject || '').toLowerCase();
-    if (['math','stats'].includes(k) || s.includes('math') || s.includes('statistic')) return 'math';
+    if (subj.type) return subj.type;
+    if (['math','stats','advmath','appliedmath','mathbasic'].includes(k) || s.includes('math') || s.includes('statistic')) return 'math';
     if (['physics'].includes(k) || s.includes('physics')) return 'physics';
     if (['chemistry'].includes(k) || s.includes('chemistry')) return 'chemistry';
     if (['biology','biotech'].includes(k) || s.includes('biology') || s.includes('biotech')) return 'biology';
     if (['computer','infoprac'].includes(k) || s.includes('computer') || s.includes('programming')) return 'computer';
-    if (['accountancy','bizstudies','economics','finance','insurance','salesmgmt','entrep'].includes(k)) return 'commerce';
-    if (['history','polsci','geo','sociology','psychology','education','logic','sst'].includes(k)) return 'humanities';
+    if (['accountancy','bizstudies','commerce','economics','finance','insurance','banking','salesmgmt','entrep','costing','finlit','bookkeeping','bizelements','ecoapp','comapp'].includes(k)) return 'commerce';
+    if (['history','polsci','geo','sociology','psychology','education','logic','sst','anthropo','legal','swadesh','ecogeo','geoassam','hisassam','ktpi'].includes(k)) return 'humanities';
     if (['eng','eng1','eng2','hindi','assamese','bengali','mil','sanskrit','arabic'].includes(k)) return 'language';
     if (['evs','envscience'].includes(k) || s.includes('environment')) return 'environment';
     return 'general';
