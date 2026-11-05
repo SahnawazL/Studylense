@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// StudyLens AI security rules. Changes on main publish automatically through
+// .github/workflows/deploy-firebase-rules.yml after the tests pass.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // The one admin account. The email must be verified by Google.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'balveerdj@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // Each student owns everything under their own account: history, bookmarks,
+    // family profiles and each profile's history. The admin can read, not change.
+    match /users/{uid}/{document=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+    }
+
+    // Anything not listed above stays closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

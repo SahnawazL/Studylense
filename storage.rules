@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Question photos are written by the server only. The admin dashboard reads them
+// through short-lived signed links.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if request.auth != null
+        && request.auth.token.email == 'balveerdj@gmail.com'
+        && request.auth.token.email_verified == true;
+      allow write: if false;
+    }
+  }
+}

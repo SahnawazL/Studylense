@@ -766,7 +766,6 @@ async function uploadImageToStorage(imageBase64, imageMime, uid, subject, classN
 
     // Get Firebase access token
     const token = await getFirebaseStorageToken(sa);
-    const bucket = `${sa.project_id}.appspot.com`;
 
     // Generate a unique filename
     const ts   = Date.now();
@@ -776,29 +775,20 @@ async function uploadImageToStorage(imageBase64, imageMime, uid, subject, classN
 
     // Upload to Firebase Storage via REST API
     const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const uploadUrl   = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(filename)}`;
-
-    const uploadRes = await fetch(uploadUrl, {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type':  imageMime || 'image/jpeg',
-        'x-goog-meta-uid':       uid || 'anon',
-        'x-goog-meta-subject':   subject || '',
-        'x-goog-meta-classname': className || '',
-        'x-goog-meta-ts':        String(ts),
-      },
-      body: imageBuffer,
-    });
-
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      console.warn('[Storage] Upload failed:', uploadRes.status, errText);
-      return null;
+    // Newer Firebase projects use .firebasestorage.app, older ones .appspot.com
+    const buckets = [process.env.FIREBASE_STORAGE_BUCKET, `${sa.project_id}.firebasestorage.app`, `${sa.project_id}.appspot.com`].filter(Boolean);
+    for (const bucket of buckets) {
+      const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(filename)}`;
+      const uploadRes = await fetch(uploadUrl, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': imageMime || 'image/jpeg' },
+        body: imageBuffer,
+      });
+      if (uploadRes.ok) return `https://storage.googleapis.com/${bucket}/${filename}`;
+      console.warn('[Storage] Upload failed:', bucket, uploadRes.status, await uploadRes.text());
+      if (uploadRes.status !== 404) return null;
     }
-
-    await uploadRes.json();
-    return `https://storage.googleapis.com/${bucket}/${filename}`;
+    return null;
 
   } catch (e) {
     console.warn('[Storage] Upload error:', e.message);

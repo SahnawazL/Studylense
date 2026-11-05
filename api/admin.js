@@ -2,35 +2,42 @@
  * StudyLens AI — Admin API
  * Vercel Serverless Function: /api/admin
  *
- * Endpoints (POST with { action, secret }):
- *   action: 'stats'      → overall usage stats
- *   action: 'users'      → list of all users + activity counts
- *   action: 'history'    → recent questions (paginated)
- *   action: 'images'     → list stored images from Firebase Storage (with signed URLs)
- *   action: 'kv'         → Upstash KV key rotation state
+ * Every request carries the Firebase ID token of the signed-in admin in the
+ * Authorization header. Google verifies the token, and only ADMIN_EMAIL gets in.
  *
- * Security: requests must include { secret: process.env.ADMIN_SECRET }
+ * POST { action }:
+ *   'stats'    overall usage
+ *   'history'  recent questions, without answers (paginated)
+ *   'entry'    one question with its answer and photo link
+ *   'users'    all accounts with their question counts
+ *   'images'   stored photos with 15-minute signed links
+ *   'kv'       API key rotation state
  *
- * FIX: images are stored in Firebase Storage with `allow read: if false`.
- *      This backend now generates V4 signed URLs (15-minute expiry) so the
- *      admin browser can load the images without public read access.
- *
- * Setup:
- *   1. Add ADMIN_SECRET=your_password to Vercel Environment Variables
- *   2. Add FIREBASE_SERVICE_ACCOUNT=<json string> to Vercel Env Vars
- *      (Firebase Console → Project Settings → Service Accounts → Generate new private key)
- *   3. Deploy
+ * Needs FIREBASE_SERVICE_ACCOUNT in Vercel. Optional: FIREBASE_STORAGE_BUCKET.
  */
 
 export const config = {
   api: { bodyParser: { sizeLimit: '1mb' } },
 };
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+const ADMIN_EMAIL = 'balveerdj@gmail.com';
+const FIREBASE_WEB_KEY = 'AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU';   // public by design: identifies the project
+const SCAN_PAGE = 1000, SCAN_MAX = 5000, SCAN_CACHE_MS = 60_000;
+const HISTORY_FIELDS = ['id', 'ts', 'mode', 'question', 'subject', 'className', 'imageStorageUrl'];
+
+// Google checks the token's signature and expiry; this checks who it belongs to.
+async function requireAdmin(req) {
+  const idToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!idToken) return { status: 401, error: 'Please sign in.' };
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }),
+  });
+  if (!r.ok) return { status: 401, error: 'Your session has expired. Please sign in again.' };
+  const user = (await r.json()).users?.[0];
+  if (!user || !user.emailVerified || String(user.email).toLowerCase() !== ADMIN_EMAIL) {
+    return { status: 403, error: 'This account does not have admin access.' };
+  }
+  return null;
 }
 
 // ── Firestore via REST API ────────────────────────────────────────────────────
@@ -58,27 +65,91 @@ async function firestoreRequest(path, method = 'GET', body = null) {
   return res.json();
 }
 
-// ── Firestore with pagination support ────────────────────────────────────────
-// Fetches ALL documents from a collection, following nextPageToken automatically.
-async function firestoreRequestAll(basePath, pageSize = 200) {
-  const allDocs = [];
-  let pageToken = null;
+// ── Every question in the project, wherever it lives ──────────────────
+// Students have no users/{uid} document of their own, and family profiles keep
+// history one level deeper, so this reads all 'history' collections directly.
+let scanCache = null, scanCacheAt = 0;
+async function scanHistory(fresh) {
+  if (!fresh && scanCache && Date.now() - scanCacheAt < SCAN_CACHE_MS) return scanCache;
+  const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+  if (!sa.project_id) throw new Error('FIREBASE_SERVICE_ACCOUNT not configured');
+  const token = await getFirebaseToken(sa);
+  const root = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
+  const entries = [];
+  let last = null, capped = false;
+  for (;;) {
+    const structuredQuery = {
+      from: [{ collectionId: 'history', allDescendants: true }],
+      select: { fields: HISTORY_FIELDS.map(fieldPath => ({ fieldPath })) },
+      orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+      limit: SCAN_PAGE,
+      ...(last ? { startAt: { values: [{ referenceValue: last }], before: false } } : {}),
+    };
+    const r = await fetch(`${root}:runQuery`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structuredQuery }),
+    });
+    if (!r.ok) throw new Error(`Firestore error ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const docs = (await r.json()).filter(row => row.document).map(row => row.document);
+    for (const doc of docs) {
+      const path = doc.name.split('/documents/')[1];
+      entries.push({ ...parseDoc(doc), path, uid: path.split('/')[1] });
+    }
+    if (docs.length < SCAN_PAGE) break;
+    last = docs[docs.length - 1].name;
+    if (entries.length >= SCAN_MAX) { capped = true; break; }
+  }
+  entries.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  scanCache = { entries: dropPhotoCopies(entries), capped };
+  scanCacheAt = Date.now();
+  return scanCache;
+}
 
+// A photo question is saved twice, by the app and by the server that stores the
+// image. Count it once, and keep the copy that knows about the image.
+function dropPhotoCopies(entries) {
+  const seen = new Map(), out = [];
+  for (const e of entries) {
+    if (e.mode !== 'photo') { out.push(e); continue; }
+    const key = `${e.uid}|${e.subject}|${e.question}`, twin = seen.get(key);
+    if (twin && Math.abs((twin.ts || 0) - (e.ts || 0)) < 120_000) {
+      if (e.imageStorageUrl && !twin.imageStorageUrl) twin.imageStorageUrl = e.imageStorageUrl;
+      continue;
+    }
+    seen.set(key, e);
+    out.push(e);
+  }
+  return out;
+}
+
+// All sign-ups from Firebase Authentication.
+async function listAccounts() {
+  const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+  const token = await getFirebaseToken(sa);
+  const accounts = [];
+  let pageToken = '';
   do {
-    const sep = basePath.includes('?') ? '&' : '?';
-    const url = basePath + sep + `pageSize=${pageSize}` + (pageToken ? `&pageToken=${pageToken}` : '');
-    const data = await firestoreRequest(url);
-    const docs = data.documents || [];
-    allDocs.push(...docs);
-    pageToken = data.nextPageToken || null;
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${sa.project_id}/accounts:batchGet?maxResults=500${pageToken ? `&nextPageToken=${encodeURIComponent(pageToken)}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) throw new Error(`Accounts error ${r.status}`);
+    const data = await r.json();
+    accounts.push(...(data.users || []));
+    pageToken = data.nextPageToken || '';
   } while (pageToken);
+  return accounts;
+}
 
-  return allDocs;
+// Newer Firebase projects use .firebasestorage.app, older ones .appspot.com.
+function storageBuckets(sa) {
+  return [process.env.FIREBASE_STORAGE_BUCKET, `${sa.project_id}.firebasestorage.app`, `${sa.project_id}.appspot.com`].filter(Boolean);
 }
 
 // ── Get Firebase access token using service account JWT ──────────────────────
+let cachedToken = null, cachedTokenUntil = 0;
 async function getFirebaseToken(sa) {
   const now = Math.floor(Date.now() / 1000);
+  if (cachedToken && now < cachedTokenUntil) return cachedToken;   // one sign-in serves every call
   const header = { alg: 'RS256', typ: 'JWT' };
   const payload = {
     iss: sa.client_email,
@@ -86,7 +157,7 @@ async function getFirebaseToken(sa) {
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
-    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_only https://www.googleapis.com/auth/firebase',
+    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_only https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit',
   };
 
   const encode = obj => btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -117,7 +188,9 @@ async function getFirebaseToken(sa) {
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) throw new Error('Could not get Firebase token: ' + JSON.stringify(tokenData));
-  return tokenData.access_token;
+  cachedToken = tokenData.access_token;
+  cachedTokenUntil = now + 3000;
+  return cachedToken;
 }
 
 // ── Parse Firestore document fields into plain JS object ─────────────────────
@@ -154,8 +227,7 @@ async function getKVState() {
 }
 
 // ── Generate a V4 Signed URL for a private Firebase Storage object ─────────────
-async function generateSignedUrl(sa, objectName, expiresInSeconds = 900) {
-  const bucket       = `${sa.project_id}.appspot.com`;
+async function generateSignedUrl(sa, bucket, objectName, expiresInSeconds = 900) {
   const serviceEmail = sa.client_email;
   const privateKey   = sa.private_key.replace(/\\n/g, '\n');
 
@@ -217,209 +289,132 @@ async function generateSignedUrl(sa, objectName, expiresInSeconds = 900) {
   return `https://${host}${resourcePath}?${canonicalQueryString}&X-Goog-Signature=${sigHex}`;
 }
 
-// ── List images from Firebase Storage ────────────────────────────────────────
-async function listStorageImages(serviceAccount, maxResults = 60) {
-  if (!serviceAccount.project_id) return [];
+// ── List images from Firebase Storage ───────────────────────────
+async function listStorageImages(sa, maxResults = 60) {
+  if (!sa.project_id) return { images: [], problem: 'FIREBASE_SERVICE_ACCOUNT not configured' };
+  const token = await getFirebaseToken(sa);
+  let bucket = null, data = null, status = 0;
+  for (const name of storageBuckets(sa)) {
+    const r = await fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(name)}/o?prefix=question-images/&maxResults=500`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    status = r.status;
+    if (r.ok) { bucket = name; data = await r.json(); break; }
+  }
+  if (!bucket) {
+    return { images: [], problem: status === 404
+      ? 'No Firebase Storage bucket exists for this project, so question photos cannot be saved yet.'
+      : `Firebase Storage refused the request (${status}).` };
+  }
 
-  const token     = await getFirebaseToken(serviceAccount);
-  const projectId = serviceAccount.project_id;
-  const bucket    = `${projectId}.appspot.com`;
-  const listUrl   = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o?prefix=question-images/&maxResults=${maxResults}&fields=items(name,timeCreated,size,metadata)`;
-
-  const res = await fetch(listUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) return [];
-
-  const data  = await res.json();
-  const items = data.items || [];
-
-  const signedItems = await Promise.all(
-    items.map(async item => {
-      let signedUrl = null;
-      try {
-        signedUrl = await generateSignedUrl(serviceAccount, item.name, 900);
-      } catch (e) {
-        console.warn('[Admin] Could not sign URL for', item.name, e.message);
-        signedUrl = `https://storage.googleapis.com/${bucket}/${item.name}`;
-      }
-      return {
-        name:      item.name,
-        created:   item.timeCreated,
-        size:      parseInt(item.size),
-        uid:       item.metadata?.uid       || 'unknown',
-        subject:   item.metadata?.subject   || '',
-        className: item.metadata?.className || '',
-        url:       signedUrl,
-      };
-    })
-  );
-
-  return signedItems;
+  // Storage keeps only the file: the question record says who sent it and for what subject.
+  const { entries } = await scanHistory();
+  const byFile = new Map(entries.filter(e => e.imageStorageUrl).map(e => [e.imageStorageUrl.split('/').pop(), e]));
+  const items = (data.items || []).sort((a, b) => String(b.timeCreated).localeCompare(String(a.timeCreated))).slice(0, maxResults);
+  const images = await Promise.all(items.map(async item => {
+    const file = item.name.split('/').pop(), entry = byFile.get(file);
+    return {
+      name: item.name, created: item.timeCreated, size: parseInt(item.size),
+      uid: entry?.uid || file.split('_')[0], subject: entry?.subject || '', className: entry?.className || '',
+      url: await generateSignedUrl(sa, bucket, item.name, 900),
+    };
+  }));
+  return { images, bucket };
 }
 
-// ── Main Handler ──────────────────────────────────────────────────────────────
+// ── Main Handler ──────────────────────────────────
 export default async function handler(req, res) {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { action, secret, limit = 50, offset = 0 } = req.body || {};
-
-  // ── Auth check ──
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) return res.status(500).json({ error: 'ADMIN_SECRET not set in environment variables.' });
-  if (secret !== adminSecret) return res.status(401).json({ error: 'Unauthorized: wrong secret.' });
-
   try {
+    const refused = await requireAdmin(req);
+    if (refused) return res.status(refused.status).json({ error: refused.error });
+
+    const { action, path, fresh, limit = 50, offset = 0 } = req.body || {};
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
 
     switch (action) {
 
-      // ── LIST ALL USERS ─────────────────────────────────────────────────────
       case 'users': {
-        // Use firestoreRequestAll to paginate through all user documents
-        const userDocs = await firestoreRequestAll('users');
-        const users = [];
-        for (const doc of userDocs) {
-          const uid = doc.name.split('/').pop();
-          // FIX BUG #4: Use pageSize=200 per user (was 1, so count was always 0 or 1).
-          // We intentionally avoid full pagination here to prevent cascading OAuth
-          // token calls (one per page x all users) which would time out the function.
-          // pageSize=200 gives accurate counts for the vast majority of users.
-          let histCount = 0;
-          try {
-            const histData = await firestoreRequest(`users/${uid}/history?pageSize=200`);
-            histCount = histData.documents?.length ?? 0;
-          } catch (_) {}
-          users.push({
-            uid,
-            historyCount: histCount,
-            lastSeen: doc.updateTime,
-          });
+        const { entries } = await scanHistory(fresh);
+        const counts = new Map();
+        for (const e of entries) {
+          const c = counts.get(e.uid) || { questions: 0, photos: 0, last: 0 };
+          c.questions++;
+          if (e.mode === 'photo') c.photos++;
+          c.last = Math.max(c.last, e.ts || 0);
+          counts.set(e.uid, c);
         }
-        return res.status(200).json({ users });
+        let accounts = [], accountsProblem = null;
+        try { accounts = await listAccounts(); } catch (e) { accountsProblem = e.message; }
+        const known = new Set(accounts.map(a => a.localId));
+        const users = accounts.map(a => {
+          const c = counts.get(a.localId);
+          return {
+            uid: a.localId, name: a.displayName || '', email: a.email || '', photo: a.photoUrl || '',
+            joined: Number(a.createdAt) || 0, lastLogin: Number(a.lastLoginAt) || 0,
+            historyCount: c?.questions || 0, photoCount: c?.photos || 0, lastSeen: c?.last || 0,
+          };
+        });
+        for (const [uid, c] of counts) {
+          if (!known.has(uid)) users.push({ uid, name: '', email: '', historyCount: c.questions, photoCount: c.photos, lastSeen: c.last });
+        }
+        return res.status(200).json({ users, accountsProblem });
       }
 
-      // ── RECENT HISTORY ACROSS ALL USERS ──────────────────────────────────
       case 'history': {
-        // FIX: use firestoreRequestAll so users beyond the first 200 are included
-        const userDocs = await firestoreRequestAll('users');
-        const allEntries = [];
-
-        for (const userDoc of userDocs) {
-          const uid = userDoc.name.split('/').pop();
-          try {
-            // FIX: raised per-user cap from 20 → 100 so prolific users don't get
-            // silently truncated when building the full activity log
-            const histData = await firestoreRequest(
-              `users/${uid}/history?pageSize=${Math.min(limit, 100)}&orderBy=ts%20desc`
-            );
-            for (const doc of (histData.documents || [])) {
-              const entry = parseDoc(doc);
-
-              let imageUrl = entry.imageStorageUrl || null;
-              if (imageUrl && serviceAccount.project_id) {
-                try {
-                  const bucket = `${serviceAccount.project_id}.appspot.com`;
-                  const prefix = `https://storage.googleapis.com/${bucket}/`;
-                  if (imageUrl.startsWith(prefix)) {
-                    const objectName = decodeURIComponent(imageUrl.slice(prefix.length));
-                    imageUrl = await generateSignedUrl(serviceAccount, objectName, 900);
-                  }
-                } catch (e) {
-                  // Keep original URL as fallback
-                }
-              }
-
-              allEntries.push({
-                uid,
-                id:        entry.id,
-                ts:        entry.ts,
-                mode:      entry.mode,
-                question:  (entry.question || '').slice(0, 120),
-                subject:   entry.subject   || '',
-                className: entry.className || '',
-                answer:    (entry.answer   || '').slice(0, 200),
-                hasImage:  entry.imageStorageUrl ? true : false,
-                imageUrl,
-              });
-            }
-          } catch (_) { /* skip users with no history */ }
-        }
-
-        allEntries.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-        const paginated = allEntries.slice(offset, offset + limit);
-
+        const { entries, capped } = await scanHistory(fresh);
         return res.status(200).json({
-          total:   allEntries.length,
-          entries: paginated,
+          total: entries.length, capped,
+          entries: entries.slice(offset, offset + limit).map(e => ({
+            path: e.path, uid: e.uid, id: e.id, ts: e.ts, mode: e.mode,
+            question: (e.question || '').slice(0, 160), subject: e.subject || '',
+            className: e.className || '', hasImage: !!e.imageStorageUrl,
+          })),
         });
       }
 
-      // ── OVERALL STATS ──────────────────────────────────────────────────────
+      // One question in full, read only when it is opened.
+      case 'entry': {
+        if (!/^users\/[^/]+\/(profiles\/[^/]+\/)?history\/[^/]+$/.test(String(path))) {
+          return res.status(400).json({ error: 'Invalid entry.' });
+        }
+        const e = parseDoc(await firestoreRequest(path.split('/').map(encodeURIComponent).join('/')));
+        let imageUrl = null;
+        const file = /^https:\/\/storage\.googleapis\.com\/([^/]+)\/(.+)$/.exec(e.imageStorageUrl || '');
+        if (file) { try { imageUrl = await generateSignedUrl(serviceAccount, file[1], decodeURIComponent(file[2]), 900); } catch (_) {} }
+        return res.status(200).json({ question: e.question || '', answer: e.answer || '', imageUrl });
+      }
+
       case 'stats': {
-        // FIX: use firestoreRequestAll so stats include every user, not just the first 200
-        const userDocs = await firestoreRequestAll('users');
-
-        let totalQuestions = 0;
-        let totalPhotoQ    = 0;
-        let totalTextQ     = 0;
-        const subjectCounts = {};
-        const classCounts   = {};
-        const dailyCounts   = {};
-
-        for (const userDoc of userDocs) {
-          const uid = userDoc.name.split('/').pop();
-          try {
-            // pageSize=300 is Firestore's hard maximum — anything above is silently capped
-            const histData = await firestoreRequest(`users/${uid}/history?pageSize=300`);
-            for (const doc of (histData.documents || [])) {
-              const e = parseDoc(doc);
-              totalQuestions++;
-              if (e.mode === 'photo') totalPhotoQ++;
-              else totalTextQ++;
-
-              if (e.subject) subjectCounts[e.subject] = (subjectCounts[e.subject] || 0) + 1;
-              if (e.className) classCounts[e.className] = (classCounts[e.className] || 0) + 1;
-
-              if (e.ts) {
-                const day = new Date(e.ts).toISOString().slice(0, 10);
-                dailyCounts[day] = (dailyCounts[day] || 0) + 1;
-              }
-            }
-          } catch (_) {}
+        const { entries, capped } = await scanHistory(fresh);
+        const subjectCounts = {}, classCounts = {}, dailyCounts = {};
+        let totalPhotoQ = 0, totalTextQ = 0;
+        for (const e of entries) {
+          if (e.mode === 'photo') totalPhotoQ++; else totalTextQ++;
+          if (e.subject) subjectCounts[e.subject] = (subjectCounts[e.subject] || 0) + 1;
+          if (e.className) classCounts[e.className] = (classCounts[e.className] || 0) + 1;
+          if (e.ts) {
+            const day = new Date(e.ts).toISOString().slice(0, 10);
+            dailyCounts[day] = (dailyCounts[day] || 0) + 1;
+          }
         }
-
-        const topSubjects = Object.entries(subjectCounts).sort((a,b)=>b[1]-a[1]).slice(0, 10);
-        const topClasses  = Object.entries(classCounts).sort((a,b)=>b[1]-a[1]).slice(0, 10);
-        const recentDays  = Object.entries(dailyCounts).sort((a,b)=>a[0]>b[0]?-1:1).slice(0, 14);
-
-        const kvState = await getKVState();
-
+        let totalUsers = new Set(entries.map(e => e.uid)).size;
+        try { totalUsers = (await listAccounts()).length; } catch (_) {}
         return res.status(200).json({
-          totalUsers: userDocs.length,
-          totalQuestions,
-          totalPhotoQ,
-          totalTextQ,
-          topSubjects,
-          topClasses,
-          recentDays,
-          kvState,
+          totalUsers, totalQuestions: entries.length, totalPhotoQ, totalTextQ, capped,
+          topSubjects: Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]).slice(0, 10),
+          topClasses:  Object.entries(classCounts).sort((a, b) => b[1] - a[1]).slice(0, 10),
+          recentDays:  Object.entries(dailyCounts).sort((a, b) => (a[0] > b[0] ? -1 : 1)).slice(0, 14),
+          kvState: await getKVState(),
         });
       }
 
-      // ── IMAGES IN FIREBASE STORAGE (with signed URLs) ─────────────────────
-      case 'images': {
-        const images = await listStorageImages(serviceAccount, limit);
-        return res.status(200).json({ images });
-      }
+      case 'images':
+        return res.status(200).json(await listStorageImages(serviceAccount, limit));
 
-      // ── KV STATE ──────────────────────────────────────────────────────────
-      case 'kv': {
-        const kvState = await getKVState();
-        return res.status(200).json({ kvState });
-      }
+      case 'kv':
+        return res.status(200).json({ kvState: await getKVState() });
 
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
