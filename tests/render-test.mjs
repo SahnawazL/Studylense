@@ -76,6 +76,14 @@ for (const [name, text] of Object.entries(S)) {
   console.log((r.issues.length ? 'FAIL ' : 'ok   ') + name, JSON.stringify(r));
   await p.screenshot({ path: `shots/${name}.png`, fullPage: true });
 }
+await p.evaluate(async () => {
+  document.documentElement.setAttribute('data-theme', 'light');
+  document.body.style.background = 'var(--bg)'; document.body.style.color = 'var(--text)';
+  const o = document.getElementById('o');
+  o.innerHTML = '<div class="answer-body" style="width:336px">' + fmt('## Rate law\n\nThe value is $K_c = \\frac{[NH_3]^2}{[N_2][H_2]^3}$.\n\n$$E = mc^2$$\n\n$$\\ce{N2 + 3H2 <=> 2NH3}$$\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n[MOL: [H]C([H])([H])[H] | Methane]\n\n[SVG:<svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg"><text x="20" y="30" fill="#fff" font-size="13">No background</text></svg>]') + '</div>';
+  injectSVGs(o.firstChild); await new Promise(r => setTimeout(r, 200));
+});
+await p.screenshot({ path: 'shots/light_mix.png', fullPage: true });
 for (const part of ['Start [SVG:<svg viewBox="0 0 9 9"><circle', 'Text $$x = \\frac{1', 'A \\( x', 'Done [SVG:<svg><rect/></svg>] more', 'Value $x$ ok **bo']) {
   console.log('preview', JSON.stringify(await p.evaluate(t => { const d = document.createElement('div'); d.innerHTML = _pv(t); return d.textContent; }, part)));
 }

@@ -2,6 +2,7 @@
   "name": "studylens-ai",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod",
