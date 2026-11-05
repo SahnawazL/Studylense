@@ -436,7 +436,7 @@ const AGENTS = {
   quality: { name: 'Quality Patrol', does: 'Spot-checks recent answers nobody reported, and opens a report for any that look wrong.', when: 'Daily, about 8 AM' },
   digest: { name: 'Daily Digest', does: 'Emails the day\'s numbers and unusual activity, with AI advice on Mondays.', when: 'Daily, about 8 AM' },
 };
-const CACHE_PREFIX = 'cache:v4:';   // must match makeCacheKey in api/ask.js
+const CACHE_PREFIX = 'cache:v5:';   // must match makeCacheKey in api/ask.js
 const dashboardUrl = 'https://studylens-ai-gamma.vercel.app/admin.html';
 const safe = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

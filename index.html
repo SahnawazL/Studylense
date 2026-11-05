@@ -4112,7 +4112,7 @@ const OTHER_SCHOOL = subjs('computer','gk','moral');
 function assebPrimary(id) {
   return [
     head('Language'), ...langs(['Assamese','Bengali','Bodo','Hindi','Manipuri','Garo']), eng(),
-    head('Main subjects'), ...subjs('math', ...(id === 'c1' ? [] : ['evs']), ['artcraft','Art Education'], 'phyed'),
+    head('Main subjects'), ...subjs('math', ...(id === 'c1' ? [] : ['evs']), 'science', ['sst','Social Studies'], ['artcraft','Art Education'], 'phyed'),
     head('Other subjects'), ...OTHER_SCHOOL,
   ];
 }
@@ -4152,30 +4152,30 @@ const ASSEB_VOCATIONAL = () => [head('Vocational stream')].concat(['Agri Enginee
 const CBSE_LANGS = ['Assamese','Bengali','Sanskrit','Urdu','Bodo','Manipuri','Nepali','French','German','Spanish'];
 const cbseFoundation = () => [
   head('Language'), lang('Hindi'), eng(), ...langs(['Assamese','Bengali','Urdu']),
-  head('Main subjects'), ...subjs('math',['artcraft','Art Education'],['phyed','Physical Education & Well-being']),
+  head('Main subjects'), ...subjs('math','science',['sst','Social Studies'],['artcraft','Art Education'],['phyed','Physical Education & Well-being']),
   head('Other subjects'), ...OTHER_SCHOOL,
 ];
 const cbsePreparatory = () => [
   head('Language'), eng(), lang('Hindi'), ...langs(['Assamese','Bengali','Urdu']),
-  head('Main subjects'), ...subjs('math',['evs','The World Around Us (EVS)'],['artcraft','Arts'],['phyed','Physical Education & Well-being'],'ctai'),
+  head('Main subjects'), ...subjs('math',['evs','The World Around Us (EVS)'],'science',['sst','Social Studies'],['artcraft','Arts'],['phyed','Physical Education & Well-being'],'ctai'),
   head('Other subjects'), ...OTHER_SCHOOL,
 ];
 const cbseMiddle = () => [
   head('Language'), eng(), ...langs(['Hindi','Sanskrit','Assamese','Bengali','Urdu','French','German']),
-  head('Main subjects'), ...subjs('math',['science','Science'],'sst'),
+  head('Main subjects'), ...subjs('math','science','sst'),
   head('Skills and other subjects'), ...subjs(['artcraft','Arts'],['phyed','Physical Education & Well-being'],'vocational','ctai','computer','gk','moral'),
 ];
 const CBSE_SKILLS = () => subjs(['itites','Information Technology'],'ai','compapp','homescience','painting','music','ncc','retail','markets','tourism','beauty','frontoffice','marketing','bizelements','bookkeeping');
 const cbseClass9 = () => [
   head('Language'), eng(), ...langs(['Hindi', ...CBSE_LANGS]),
-  head('Main subjects'), ...subjs('math',['advmath','Mathematics Advanced'],['science','Science'],extraKey('scienceadv'),'sst'),
+  head('Main subjects'), ...subjs('math',['advmath','Mathematics Advanced'],'science',extraKey('scienceadv'),'sst'),
   head('Social Science parts'), ...subjs('history','geo','polsci','economics'),
   head('Skills and other subjects'), ...subjs(['artcraft','Art Education'],['phyed','Physical Education & Well-being'],'vocational'), ...CBSE_SKILLS(),
 ];
 function extraKey(key) { SUBJECT_ICON[key] = SUBJECT_ICON[key] || ['🔬','Science Advanced']; return key; }
 const cbseClass10 = () => [
   head('Language'), eng('English Language & Literature'), extra('engcomm','🔤','English Communicative','language'), lang('Hindi','Hindi Course A'), { ...lang('Hindi','Hindi Course B'), key: 'hindib' }, ...langs(CBSE_LANGS),
-  head('Main subjects'), ...subjs(['math','Mathematics Standard'],extra2('mathbasic','🔢','Mathematics Basic'),['science','Science'],'sst'),
+  head('Main subjects'), ...subjs(['math','Mathematics Standard'],extra2('mathbasic','🔢','Mathematics Basic'),'science','sst'),
   head('Social Science parts'), ...subjs('history','geo','polsci','economics'),
   head('Skill subjects'), ...CBSE_SKILLS(),
 ];
@@ -4194,17 +4194,17 @@ const CBSE_STREAM = {
 
 const icsePrimary = (id) => [
   head('Language'), eng(), ...langs(['Hindi','Assamese','Bengali','Sanskrit']),
-  head('Main subjects'), ...subjs('math','evs', ...(['c3','c4','c5'].includes(id) ? [['science','Science'],['sst','Social Studies']] : [])),
+  head('Main subjects'), ...subjs('math','evs','science',['sst','Social Studies']),
   head('Other subjects'), ...subjs(['computer','Computer Studies'],'artcraft','phyed','gk','moral'),
 ];
 const icseMiddle = () => [
   head('Language'), eng('English Language'), extra('englit','📝','English Literature','language'), ...langs(['Hindi','Assamese','Bengali','Sanskrit','French','German']),
-  head('Main subjects'), ...subjs('math','physics','chemistry','biology',['history','History & Civics'],'geo'),
+  head('Main subjects'), ...subjs('math','science','physics','chemistry','biology',['sst','Social Studies'],['history','History & Civics'],'geo'),
   head('Other subjects'), ...subjs(['computer','Computer Studies'],'artcraft','phyed','moral','gk','supw'),
 ];
 const icseSecondary = () => [
-  head('Group I: compulsory'), eng('English'), ...langs(ICSE_LANGUAGES), ...subjs(['history','History & Civics'],'geo'),
-  head('Group II'), ...subjs('math','physics','chemistry','biology','economics',['commerce','Commercial Studies'],'envscience'), ...langs(['Arabic','Persian']).map(l => ({ ...l, subject: l.subject + ' (Classical)' })),
+  head('Group I: compulsory'), eng('English'), ...langs(ICSE_LANGUAGES), ...subjs(['history','History & Civics'],'geo',['sst','Social Studies']),
+  head('Group II'), ...subjs('math',['science','Science (Physics, Chemistry, Biology)'],'physics','chemistry','biology','economics',['commerce','Commercial Studies'],'envscience'), ...langs(['Arabic','Persian']).map(l => ({ ...l, subject: l.subject + ' (Classical)' })),
   head('Group III: Section A'), ...subjs('compapp',extra2('ecoapp','💰','Economic Applications'),extra2('comapp','💼','Commercial Applications'),['artcraft','Art'],'performing','homescience','cookery','fashion','phyed','yoga','techdraw',extra2('envapp','🌿','Environmental Applications'),'massmedia','hospitality'),
   head('Group III: Section B'), ...subjs(['airobotics','Robotics & Artificial Intelligence'],extra2('voc_beauty','🌟','Assistant Beauty Therapist'),extra2('voc_hair','🌟','Assistant Hair Stylist'),extra2('voc_data','💻','Basic Data Entry Operator'),extra2('voc_diet','🍳','Dietetic Aide'),extra2('voc_cash','💵','Cashier'),extra2('voc_early','🏃','Early Years Physical Activity Facilitator'),extra2('voc_auto','🚗','Auto Service Technician')),
   head('Compulsory internal'), ...subjs('supw'),

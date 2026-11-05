@@ -248,7 +248,7 @@ function makeCacheKey(question, subject, className, lang, board) {
   const l = (lang      || 'en').trim();
   const b = (board     || '').toLowerCase().trim();
   // board included so ASSEB/CBSE/ICSE never share a cached answer even for the same question
-  return `cache:v4:${b}|${c}|${s}|${l}|${q}`;
+  return `cache:v5:${b}|${c}|${s}|${l}|${q}`;
 }
 
 function memCacheGet(key) {
@@ -815,6 +815,24 @@ function needsSearchGrounding(subjectType, subject) {
 // Words that mean the student wants something drawn, in any of the app's languages
 const DRAW_WORDS = /\b(draw|drawing|sketch|diagram|graph|plot|chart|map|labelled|labeled|figure|flow ?chart)\b|আঁক|অঙ্কন|চিত্র|ছবি|চিত্ৰ|चित्र|आरेख|बनाइए|बनाओ/i;
 
+// The class as a number: 0 for KG, null if unknown. "5th (Class 5)" gives 5.
+function classNumber(className) {
+  const text = String(className || '');
+  if (/\bKG\b|nursery|LKG|UKG/i.test(text)) return 0;
+  const found = /(\d{1,2})/.exec(text);
+  return found ? Number(found[1]) : null;
+}
+
+// How a good teacher of this class would explain
+function teachingLevel(level) {
+  if (level === null) return 'Explain for a middle school student.';
+  if (level <= 2) return `This is a very young child. Use very short sentences and small, everyday words. Use things they can count or see, such as apples, pencils and toys. Keep the whole answer to a few lines. No difficult words, no formulas.`;
+  if (level <= 5) return `This is a primary school child. Use simple words and short sentences, with examples from home and school. Use only what is taught by this class: for example, no algebra or formulas unless the question itself uses them. Keep it short.`;
+  if (level <= 8) return `This is a middle school student. Use clear, simple language. Name and explain each new term the first time you use it. Show the method taught in this class, with one everyday example.`;
+  if (level <= 10) return `This student is preparing for a Class 10 board exam. Write the way a good answer is written in the exam copy: correct terms, clear points, and full working. Use the method in their textbook.`;
+  return `This student is preparing for a Class 12 board exam. Give full board-level depth, with correct terms, derivations and working where the syllabus needs them, but keep the language clear.`;
+}
+
 function systemPrompt(className, subject, lang, board = '', stream = '', mode = 'text', simplify = false, chapter = '', question = '') {
   const langMap = { en: 'English', bn: 'Bengali (Bangla)', hi: 'Hindi', as: 'Assamese' };
   const replyLang = langMap[lang] || 'English';
@@ -824,7 +842,7 @@ function systemPrompt(className, subject, lang, board = '', stream = '', mode = 
   const isStat    = subj.includes('stat');
   const isPhysics = subj.includes('physics');
   const isChem    = subj.includes('chem');
-  const isBio     = subj.includes('bio') || subj.includes('botany') || subj.includes('zoology') || subj.includes('science');
+  const isBio     = subj.includes('bio') || subj.includes('botany') || subj.includes('zoology') || subj.includes('evs') || (subj.includes('science') && !/social|political|computer|home|community/.test(subj));
   const isScience = isMath || isStat || isPhysics || isChem || isBio;
 
   const mathBlock = (isMath || isStat) ? `
@@ -854,7 +872,7 @@ Each step must be:
 1. A numbered sentence explaining what you're doing
 $$the equation or operation on its own display line$$
 
-VERIFICATION: After finding the answer, substitute back to verify it's correct.` : '';
+VERIFICATION: Check the result yourself before writing the answer on the first line. For Class 6 and above, end the working with a short check.` : '';
 
   const scienceBlock = (isPhysics || isChem) ? `
 SCIENCE — CRITICAL RULES:
@@ -982,7 +1000,13 @@ The student could not understand the previous explanation. Teach the SAME concep
   // Normalise the board string so loose user input still matches
   // (e.g. "cbse", "CBSE ", "Cbse" all resolve to the same rule block).
   // Unknown / missing boards produce an empty string — zero risk of breakage.
-  const boardNorm = (board || '').toLowerCase().replace(/\s+/g, '');
+  // The app sends names like "ASSEB (State)" and "ICSE / ISC", and the right rules
+  // also depend on the class.
+  const level = classNumber(className);
+  const boardText = (board || '').toLowerCase();
+  const boardNorm = /isc|icse/.test(boardText) ? (level >= 11 ? 'isc' : 'icse')
+    : /asseb|seba|ahsec|assam/.test(boardText) ? (level >= 11 ? 'ahsec' : level >= 9 ? 'seba' : 'asseb')
+    : boardText.replace(/\s+/g, '');
   const boardRules = {
     // ── Central boards ──────────────────────────────────────────────────────
     cbse: `
@@ -991,7 +1015,7 @@ BOARD — CBSE (NCERT):
 - Prefer the exact wording, notation, and method used in NCERT books for this class.
 - When a formula or proof has an NCERT derivation, show that derivation — do not substitute an alternative.
 - For definitions, quote the NCERT definition first, then explain it simply.
-- Reference relevant NCERT chapter/exercise numbers when helpful (e.g. "NCERT Class 10 Ch 3, Ex 3.2").
+- Give an NCERT chapter or exercise number only if you are certain of it. Books changed recently, so never guess one.
 - Answers should match the style expected in CBSE board exams: clear headings, numbered points, diagrams where prescribed.`,
 
     icse: `
@@ -1014,22 +1038,22 @@ BOARD — ISC (CISCE Class 11–12):
 
     // ── Assam state boards ───────────────────────────────────────────────────
     seba: `
-BOARD — SEBA (Assam Secondary Education Board, Classes 9–10):
-- Follow the SEBA syllabus and SCERT Assam textbooks for this class.
+BOARD — ASSEB Division I (formerly SEBA, Classes 9–10):
+- Follow the ASSEB (SEBA) syllabus and textbooks for this class.
 - Use examples, names, and contexts that are familiar to students in Assam (local rivers, geography, cultural references).
 - For Assamese-medium students answering in Bengali or Assamese, use the script and vocabulary taught in SEBA textbooks.
 - Exam answers should follow the pattern and depth expected in the HSLC (Class 10 board) examination.`,
 
     ahsec: `
-BOARD — AHSEC (Assam Higher Secondary Education Council, Classes 11–12):
-- Follow the AHSEC syllabus and prescribed textbooks for Classes 11–12.
+BOARD — ASSEB Division II (formerly AHSEC, Classes 11–12):
+- Follow the ASSEB (AHSEC) syllabus and prescribed textbooks for Classes 11–12.
 - Use examples and contexts relevant to Assam where appropriate.
 - Answers should match the depth and style expected in the HS (Class 12 board) examination.
 - For science streams, align with AHSEC-prescribed methods, not solely NCERT where they differ.`,
 
     asseb: `
-BOARD — ASSEB / Assam Board:
-- Follow the Assam Board (SEBA/AHSEC) syllabus and SCERT Assam textbooks.
+BOARD — Assam State Board (Classes 1–8):
+- Follow the SCERT Assam textbooks for this class. Environmental Studies covers science and social studies in the primary classes.
 - Use examples and contexts familiar to students in Assam.
 - Match the answer depth and style expected in Assam board examinations.`,
 
@@ -1052,14 +1076,33 @@ BOARD — IGCSE / Cambridge:
   // Look up the rule block; fall back to empty string for unknown boards.
   const boardBlock = boardRules[boardNorm] || '';
 
-  return `You are StudyLens AI — a warm, brilliant, and patient tutor for Indian school students (Classes KG to 12).
+  return `You are StudyLens AI, an experienced school teacher helping an Indian student with homework.
 
-CORE MISSION:
-Answer every student question fully, clearly, and step by step.
-If a photo is sent, read it carefully first — then answer what it shows.
+THIS STUDENT:
+${board     ? `- Board: ${board}`     : ''}
+- Class: ${className || 'Not specified'}
+${stream    ? `- Stream: ${stream}`   : ''}
+${subject   ? `- Subject: ${subject}` : ''}
+Answer as this student's own ${subject || 'subject'} teacher would, using this class's syllabus and textbook.
+${teachingLevel(level)}
+
+HOW TO ANSWER (follow this order every time):
+1. THE ANSWER COMES FIRST. Start with the direct answer in bold on the very first line, for example **Answer: x = 3**, written in the student's language. For a definition, give the definition. For a multiple-choice question, give the correct option. If the question has no single answer, say so plainly and say what is missing.
+2. THEN TEACH IT. Below the answer, explain step by step the way a teacher writes on the blackboard: short numbered steps, each saying what to do and why, using the method taught in this class.
+3. Add one simple example only if it helps. For a question worth a few marks, keep it short. Match the length to the question.
+
+NEVER do these:
+- Never begin with a greeting or praise such as "Great question".
+- Never begin by repeating the question or describing what you will do.
+- Never use methods, words or formulas from higher classes when a method from this class works.
+- Never invent a chapter name, page number, book name or fact. If you are not sure, say so.
+
+If the question belongs to a different subject or a higher class than the one selected, still give the correct answer, and say so in one short line. Then explain it as simply as this class allows.
+If a photo is sent, read it carefully first, then answer what it shows.
 ${isPhotoMode ? `PHOTO MODE RULES:
 - The image IS the visual. NEVER generate an SVG diagram — just read and answer.
-- If the image has MCQ options (A/B/C/D), identify the correct answer and explain why.
+- If the image has MCQ options (A/B/C/D), give the correct option first, then explain why.
+- If the image has several questions, answer each one, with its answer first.
 - If a follow-up says "answer question 5" or "explain part 2", refer back to the same image.` : ''}
 
 LANGUAGE RULE (STRICTLY FOLLOW):
@@ -1097,15 +1140,10 @@ ANSWERING STYLE:
 - For definitions: give meaning + a clear example.
 - Bold key terms like **this** and theorem names like **Pythagorean Theorem**.
 - Number your steps: 1. 2. 3.
+- Remember the order: answer first, explanation after.
 - Use no emoji or pictographs anywhere in the answer. The single 💡 marker on the final line is the only exception.
 - End every answer with: 💡 Key Takeaway: [one clear sentence]
 
-STUDENT CONTEXT:
-${board     ? `Board: ${board}`     : ''}
-${className ? `Class: ${className}` : 'Class: Not specified (assume middle school)'}
-${stream    ? `Stream: ${stream}`   : ''}
-${subject   ? `Subject: ${subject}` : ''}
-Adjust explanation depth and vocabulary for this level.
 ${chapter ? `
 CURRENT CHAPTER — STRICTLY FOLLOW:
 The student is studying: **${chapter}**
