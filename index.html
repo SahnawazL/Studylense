@@ -3050,6 +3050,18 @@ function slShareCard() {
   const body = card.querySelector('.result-body');
   body.append(...[...source.cloneNode(true).childNodes]);
   body.querySelectorAll('[id]').forEach(n => { if (!n.closest('svg')) n.removeAttribute('id'); });   // drawings need theirs for lines and arrows
+  // Each drawing becomes its own image first, so masks, gradients and arrows stay exact
+  body.querySelectorAll('.ans-mol-box svg, .ans-svg-wrap svg').forEach(svg => {
+    const copy = svg.cloneNode(true), box = svg.viewBox?.baseVal;
+    copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    if (box?.width) { copy.setAttribute('width', box.width); copy.setAttribute('height', box.height); }
+    copy.style.width = copy.style.height = copy.style.maxWidth = '';
+    const picture = new Image();
+    picture.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(copy));
+    picture.alt = '';
+    picture.style.cssText = 'display:block;width:100%;height:auto;border-radius:6px';
+    svg.replaceWith(picture);
+  });
   // the card sits inside an off-screen holder, so the picture itself has no offset
   const stage = document.createElement('div');
   stage.className = 'share-stage';
@@ -3060,6 +3072,7 @@ function slShareCard() {
 async function slShareImage(card) {
   await slLoadShareLib();
   await document.fonts?.ready;
+  await Promise.all([...card.querySelectorAll('img')].map(i => i.decode().catch(() => {})));
   const blob = await htmlToImage.toBlob(card, { pixelRatio: 2, cacheBust: false, backgroundColor: '#0f1117' });
   if (!blob) throw new Error('image');
   return blob;
