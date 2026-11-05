@@ -28,12 +28,6 @@
       ]
     }
   ],
-  "crons": [
-    {
-      "path": "/api/admin?cron=photos",
-      "schedule": "30 20 * * *"
-    }
-  ],
   "functions": {
     "api/admin.js": {
       "maxDuration": 60

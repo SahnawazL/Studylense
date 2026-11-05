@@ -490,23 +490,6 @@ body::before{
 }
 .modal-a-label{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
 
-/* lightbox */
-.lightbox{
-  position:fixed;inset:0;z-index:600;
-  background:rgba(0,0,0,.95);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  opacity:0;pointer-events:none;transition:opacity .25s;
-}
-.lightbox.open{opacity:1;pointer-events:all}
-.lightbox img{max-width:min(90vw,700px);max-height:75vh;object-fit:contain;border:1px solid var(--border)}
-.lightbox-meta{margin-top:1rem;font-family:var(--mono);font-size:.68rem;color:var(--muted);text-align:center;line-height:1.7}
-.lightbox-close{
-  position:absolute;top:1rem;right:1rem;
-  background:var(--s2);border:1px solid var(--border);
-  color:var(--text);font-family:var(--mono);font-size:.68rem;
-  padding:.4rem .85rem;cursor:pointer;transition:all .2s;
-}
-.lightbox-close:hover{border-color:var(--red);color:var(--red)}
 
 /* ── EMPTY STATE ── */
 .empty{text-align:center;padding:3.5rem 1rem;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
@@ -609,7 +592,6 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
       <button class="nav-item active" onclick="switchTab('overview',this)"><span class="nav-item-icon">📊</span>Overview</button>
       <button class="nav-item" onclick="switchTab('activity',this)"><span class="nav-item-icon">📋</span>Activity</button>
       <button class="nav-item" onclick="switchTab('users',this)"><span class="nav-item-icon">👥</span>Users</button>
-      <button class="nav-item" onclick="switchTab('images',this)"><span class="nav-item-icon">📷</span>Images</button>
       <button class="nav-item" onclick="switchTab('reports',this)"><span class="nav-item-icon">🚩</span>Reports<span class="nav-count" id="reportCount" hidden></span></button>
       <div class="nav-divider"></div>
       <div class="sidebar-label">System</div>
@@ -669,15 +651,6 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
       </div>
 
       <!-- ══ IMAGES ══ -->
-      <div class="panel" id="panel-images">
-        <div class="page-hdr">
-          <div class="page-title">Image Archive</div>
-          <div class="page-sub">// PHOTO QUESTIONS UPLOADED BY STUDENTS</div>
-        </div>
-        <div class="loading" id="images-loading"><div class="loading-track"></div>LOADING IMAGES…</div>
-        <div id="images-content" style="display:none"></div>
-      </div>
-
       <!-- ══ QUOTA ══ -->
       <div class="panel" id="panel-quota">
         <div class="page-hdr">
@@ -688,7 +661,7 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
         <div id="quota-content" style="display:none"></div>
       </div>
 
-      <!-- ══ REPORTS ══ -->
+            <!-- ══ REPORTS ══ -->
       <div class="panel" id="panel-reports">
         <div class="page-hdr">
           <div class="page-title">Reports</div>
@@ -755,17 +728,10 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
 </div>
 
 <!-- ══ LIGHTBOX ══ -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
-  <button class="lightbox-close" onclick="closeLightbox()">✕ Close</button>
-  <img id="lightboxImg" src="" alt=""/>
-  <div class="lightbox-meta" id="lightboxMeta"></div>
-</div>
-
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
 let adminUser = null;
 let forceFresh = false;
-let imageList = [];
 let userList = [];
 let activeTab   = 'overview';
 let histPage    = 0;
@@ -856,7 +822,6 @@ function switchTab(tab, el) {
   if (tab==='overview' && !document.getElementById('overview-content').innerHTML.trim()) loadOverview();
   if (tab==='activity') { histPage=0; loadActivity(); }
   if (tab==='users') loadUsers();
-  if (tab==='images') loadImages();
   if (tab==='quota') loadQuota();
   if (tab==='reports') loadReports();
   if (tab==='health') loadHealth();
@@ -869,7 +834,6 @@ function refreshCurrent() {
   if (activeTab==='overview') { document.getElementById('overview-content').style.display='none'; document.getElementById('overview-content').innerHTML=''; loadOverview(); }
   if (activeTab==='activity') { histPage=0; loadActivity(); }
   if (activeTab==='users') loadUsers();
-  if (activeTab==='images') loadImages();
   if (activeTab==='quota') loadQuota();
   if (activeTab==='reports') loadReports();
   if (activeTab==='health') loadHealth();
@@ -1090,7 +1054,6 @@ function renderHistory() {
     const num = histPage*PAGE_SIZE+i+1;
     const ts = e.ts ? new Date(e.ts).toLocaleString() : '—';
     const q = (e.question||'').slice(0,55)+(e.question?.length>55?'…':'');
-    const imgCell = e.hasImage ? `<span style="color:var(--purple)">📷</span>` : '—';
     const modeClass = e.mode==='photo'?'badge-photo':e.mode==='quiz'?'badge-quiz':'badge-text';
     return `<tr data-i="${allHistory.indexOf(e)}" onclick="openAnswerModal(allHistory[this.dataset.i])">
       <td style="color:var(--muted)">${num}</td>
@@ -1100,14 +1063,13 @@ function renderHistory() {
       <td>${esc(e.subject||'—')}</td>
       <td>${esc(e.className||'—')}</td>
       <td title="${esc(e.question)}">${esc(q)||'<em style="color:var(--muted)">photo only</em>'}</td>
-      <td>${imgCell}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('activity-content').innerHTML = `
     <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th>#</th><th>Time</th><th>User</th><th>Mode</th><th>Subject</th><th>Class</th><th>Question</th><th>Img</th></tr></thead>
+        <thead><tr><th>#</th><th>Time</th><th>User</th><th>Mode</th><th>Subject</th><th>Class</th><th>Question</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -1151,11 +1113,8 @@ async function openAnswerModal(e) {
         <span class="meta-chip">UID: <strong>${esc((e.uid||'').slice(0,14))}…</strong></span>
       </div>
       ${question ? `<div class="modal-q">${esc(question)}</div>` : ''}
-      ${full.imageUrl ? `<div style="margin-bottom:1rem"><img id="modalPhoto" alt="" style="max-width:100%;border:1px solid var(--border)"/></div>` : ''}
       <div class="modal-a-label">AI Answer</div>
       <div class="modal-a" style="white-space:pre-wrap">${note ? `<em style="color:var(--muted)">${esc(note)}</em>` : esc(full.answer) || '<em style="color:var(--muted)">Answer not stored</em>'}</div>`;
-    const img = document.getElementById('modalPhoto');
-    if (img) { img.src = full.imageUrl; img.onerror = () => img.remove(); img.onclick = () => openLightboxDirect(full.imageUrl, e.subject, e.className, ts, ''); }
   };
   paint({}, 'Loading…');
   document.getElementById('answerModal').classList.add('open');
@@ -1220,7 +1179,7 @@ async function openUserModal(u) {
     }).join('') : '<div style="color:var(--muted);font-family:var(--mono);font-size:.68rem">No questions yet</div>'}
     <div class="danger-zone">
       <div class="modal-a-label">Delete student data</div>
-      <p>Removes this student's history, bookmarks, family profiles, reports and stored photos. This cannot be undone. Their sign-in account stays, so they can start again.</p>
+      <p>Removes this student's history, bookmarks, family profiles, and reports. This cannot be undone. Their sign-in account stays, so they can start again.</p>
       <label for="deleteWord">Type DELETE to confirm</label>
       <input id="deleteWord" class="search-input" autocomplete="off" oninput="document.getElementById('deleteGo').disabled=this.value.trim()!=='DELETE'"/>
       <button id="deleteGo" class="pg-btn danger-btn" disabled onclick="deleteStudentData(currentStudent)">Delete all data</button>
@@ -1237,7 +1196,7 @@ async function deleteStudentData(u) {
   go.disabled = true; go.textContent = 'Deleting…';
   try {
     const r = await api('deleteStudent', { uid: u.uid });
-    out.textContent = `Deleted ${r.records} records, ${r.reports} reports and ${r.photos} photos.`;
+    out.textContent = `Deleted ${r.records} records and ${r.reports} reports.`;
     allHistory = allHistory.filter(e => e.uid !== u.uid);
     go.textContent = 'Deleted';
     forceFresh = true;
@@ -1442,38 +1401,6 @@ async function loadHealth() {
   }
 }
 
-// ── IMAGES ────────────────────────────────────────────────────────────────────
-async function loadImages() {
-  loading('images-loading','images-content');
-  try {
-    const data = await api('images',{limit:60});
-    const images = imageList = data.images||[];
-    if(!images.length){
-      document.getElementById('images-content').innerHTML=`<div class="empty"><span class="empty-icon">📷</span>${esc(data.problem||'No images saved yet.')}</div>`;
-      show('images-loading','images-content');return;
-    }
-    const grid = images.map((img,i)=>{
-      const t = img.created?new Date(img.created).toLocaleString():'—';
-      const kb = img.size?Math.round(img.size/1024)+' KB':'';
-      return `<div class="img-item" onclick="openImage(${i})">
-        <img src="${esc(img.url)}" alt="" loading="lazy" onerror="this.style.opacity='.15'"/>
-        <div class="img-meta">
-          <div class="img-subj">${esc(img.subject||'Unknown')}</div>
-          <div class="img-time">${esc(t)}</div>
-        </div>
-      </div>`;
-    }).join('');
-    document.getElementById('images-content').innerHTML=`
-      <div class="sec-hdr"><span class="sec-title">${data.total||images.length} Images Stored</span><div class="sec-line"></div></div>
-      <div class="alert-banner ok">Photos delete automatically after ${esc(data.keepDays||30)} days.${data.lastCleanup?` Last cleanup ${esc(new Date(data.lastCleanup.at).toLocaleDateString())}: ${esc(data.lastCleanup.deleted)} removed.`:''}</div>
-      <div class="img-grid">${grid}</div>`;
-    show('images-loading','images-content');
-  } catch(e) {
-    document.getElementById('images-loading').style.display='none';
-    errState('images-content', e.message);
-  }
-}
-
 // ── QUOTA ─────────────────────────────────────────────────────────────────────
 async function loadQuota() {
   loading('quota-loading','quota-content');
@@ -1537,22 +1464,8 @@ function closeModal(id, e) {
   if (e && e.target !== document.getElementById(id)) return;
   document.getElementById(id).classList.remove('open');
 }
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') { document.querySelectorAll('.modal-overlay.open,.lightbox.open').forEach(el=>el.classList.remove('open')); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') { document.querySelectorAll('.modal-overlay.open').forEach(el=>el.classList.remove('open')); } });
 
-function openImage(i) {
-  const img = imageList[i];
-  openLightboxDirect(img.url, img.subject, img.className, img.created ? new Date(img.created).toLocaleString() : '', img.size ? Math.round(img.size/1024)+' KB' : '');
-}
-function openLightboxDirect(url, subject, className, time, size) {
-  document.getElementById('lightboxImg').src=url;
-  document.getElementById('lightboxMeta').innerHTML=`Subject: ${esc(subject||'?')} · Class: ${esc(className||'?')}<br/>${esc(time)} ${size?'· '+esc(size):''}`;
-  document.getElementById('lightbox').classList.add('open');
-}
-function closeLightbox(e) {
-  if(e&&e.target!==document.getElementById('lightbox')&&!e.target.classList.contains('lightbox-close')) return;
-  document.getElementById('lightbox').classList.remove('open');
-  document.getElementById('lightboxImg').src='';
-}
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";

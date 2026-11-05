@@ -8,21 +8,19 @@
  * POST { action }:
  *   'stats'    overall usage
  *   'history'  recent questions, without answers (paginated)
- *   'entry'    one question with its answer and photo link
+ *   'entry'    one question with its answer
  *   'users'    all accounts with their question counts
- *   'images'   stored photos with 15-minute signed links
  *   'kv'       API key rotation state
  *   'health'   daily AI answers, failures, speed and models
  *   'reports'  student reports; 'reportSet' and 'reportDelete' manage them
- *   'deleteStudent'  removes one student's history, reports and photos
+ *   'deleteStudent'  removes one student's history and reports
  *   'status'   live system checks
  *   'agentsInfo', 'agentRun', 'agentPause'  the background agents
  *
  * One action is open to any signed-in student: 'report' sends a wrong-answer report.
- * Vercel's daily schedule calls GET ?cron=photos, which removes photos past 30 days.
  * GitHub's schedule wakes the agents with a signed ticket (scripts/run-agents.mjs).
  *
- * Needs FIREBASE_SERVICE_ACCOUNT in Vercel. Optional: FIREBASE_STORAGE_BUCKET.
+ * Needs FIREBASE_SERVICE_ACCOUNT in Vercel.
  */
 
 import { X509Certificate, verify as rsaVerify } from 'node:crypto';
@@ -33,9 +31,9 @@ export const config = {
 
 const ADMIN_EMAIL = 'balveerdj@gmail.com';
 const FIREBASE_WEB_KEY = 'AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU';   // public by design: identifies the project
-const PHOTO_DAYS = 30, REPORT_REASONS = ['wrong', 'diagram', 'format', 'other'];
+const REPORT_REASONS = ['wrong', 'diagram', 'format', 'other'];
 const SCAN_PAGE = 1000, SCAN_MAX = 5000, SCAN_CACHE_MS = 60_000;
-const HISTORY_FIELDS = ['id', 'ts', 'mode', 'question', 'subject', 'className', 'imageStorageUrl'];
+const HISTORY_FIELDS = ['id', 'ts', 'mode', 'question', 'subject', 'className'];
 
 // Google checks the token's signature and expiry; this checks who it belongs to.
 async function signedInUser(req) {
@@ -120,14 +118,12 @@ async function scanHistory(fresh) {
   return scanCache;
 }
 
-// Older questions were saved twice, by the app and by the server. Count each one
-// once, and keep the copy that knows about the image.
+// Older questions may have been saved twice. Count each one once.
 function dropCopies(entries) {
   const seen = new Map(), out = [];
   for (const e of entries) {
     const key = `${e.uid}|${e.subject}|${e.question}`, twin = seen.get(key);
     if (twin && Math.abs((twin.ts || 0) - (e.ts || 0)) < 120_000) {
-      if (e.imageStorageUrl && !twin.imageStorageUrl) twin.imageStorageUrl = e.imageStorageUrl;
       continue;
     }
     seen.set(key, e);
@@ -177,11 +173,6 @@ async function listAccounts() {
   return accounts;
 }
 
-// Newer Firebase projects use .firebasestorage.app, older ones .appspot.com.
-function storageBuckets(sa) {
-  return [process.env.FIREBASE_STORAGE_BUCKET, `${sa.project_id}.firebasestorage.app`, `${sa.project_id}.appspot.com`].filter(Boolean);
-}
-
 // ── Get Firebase access token using service account JWT ──────────────────────
 let cachedToken = null, cachedTokenUntil = 0;
 async function getFirebaseToken(sa) {
@@ -194,7 +185,7 @@ async function getFirebaseToken(sa) {
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
-    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit',
+    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit',
   };
 
   const encode = obj => btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -261,142 +252,6 @@ async function getKVState() {
   } catch (e) {
     return null;
   }
-}
-
-// ── Generate a V4 Signed URL for a private Firebase Storage object ─────────────
-async function generateSignedUrl(sa, bucket, objectName, expiresInSeconds = 900) {
-  const serviceEmail = sa.client_email;
-  const privateKey   = sa.private_key.replace(/\\n/g, '\n');
-
-  const now          = new Date();
-  const dateStamp    = now.toISOString().replace(/[-:]/g, '').slice(0, 8);
-  const dateTimeStamp = now.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
-
-  const credentialScope = `${dateStamp}/auto/storage/goog4_request`;
-  const credential      = `${serviceEmail}/${credentialScope}`;
-  const host            = 'storage.googleapis.com';
-  const encodedObject   = objectName.split('/').map(encodeURIComponent).join('/');
-  const resourcePath    = `/${bucket}/${encodedObject}`;
-
-  const queryParams = new URLSearchParams({
-    'X-Goog-Algorithm':     'GOOG4-RSA-SHA256',
-    'X-Goog-Credential':    credential,
-    'X-Goog-Date':          dateTimeStamp,
-    'X-Goog-Expires':       String(expiresInSeconds),
-    'X-Goog-SignedHeaders': 'host',
-  });
-  const canonicalQueryString = queryParams.toString();
-
-  const canonicalHeaders = `host:${host}\n`;
-  const signedHeaders    = 'host';
-
-  const canonicalRequest = [
-    'GET',
-    resourcePath,
-    canonicalQueryString,
-    canonicalHeaders,
-    signedHeaders,
-    'UNSIGNED-PAYLOAD',
-  ].join('\n');
-
-  const encoder    = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(canonicalRequest));
-  const hashHex    = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-  const stringToSign = [
-    'GOOG4-RSA-SHA256',
-    dateTimeStamp,
-    credentialScope,
-    hashHex,
-  ].join('\n');
-
-  const pemBody   = privateKey.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '');
-  const binaryKey = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8', binaryKey.buffer,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['sign']
-  );
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5', cryptoKey,
-    encoder.encode(stringToSign)
-  );
-  const sigHex = Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-  return `https://${host}${resourcePath}?${canonicalQueryString}&X-Goog-Signature=${sigHex}`;
-}
-
-// ── Firebase Storage ─────────────────────────────────────────────
-// The first bucket that answers is the project's real one.
-async function listPhotos(sa, prefix = 'question-images/') {
-  const token = await getFirebaseToken(sa);
-  let status = 0;
-  for (const bucket of storageBuckets(sa)) {
-    const items = [];
-    let pageToken = '', found = false;
-    do {
-      const r = await fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o?prefix=${encodeURIComponent(prefix)}&maxResults=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      status = r.status;
-      if (!r.ok) break;
-      found = true;
-      const data = await r.json();
-      items.push(...(data.items || []));
-      pageToken = items.length < 5000 ? data.nextPageToken || '' : '';
-    } while (pageToken);
-    if (found) return { bucket, items };
-  }
-  return { bucket: null, items: [], status };
-}
-
-async function deletePhotos(sa, bucket, names) {
-  const token = await getFirebaseToken(sa);
-  let deleted = 0;
-  for (let i = 0; i < names.length; i += 10) {
-    const done = await Promise.all(names.slice(i, i + 10).map(name =>
-      fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(name)}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.ok || r.status === 404).catch(() => false)));
-    deleted += done.filter(Boolean).length;
-  }
-  return deleted;
-}
-
-async function listStorageImages(sa, maxResults = 60) {
-  if (!sa.project_id) return { images: [], problem: 'FIREBASE_SERVICE_ACCOUNT not configured' };
-  const { bucket, items, status } = await listPhotos(sa);
-  if (!bucket) {
-    return { images: [], problem: status === 404
-      ? 'No Firebase Storage bucket exists for this project, so question photos cannot be saved yet.'
-      : `Firebase Storage refused the request (${status}).` };
-  }
-
-  // Storage keeps only the file: the question record says who sent it and for what subject.
-  const { entries } = await scanHistory();
-  const byFile = new Map(entries.filter(e => e.imageStorageUrl).map(e => [e.imageStorageUrl.split('/').pop(), e]));
-  const newest = items.sort((a, b) => String(b.timeCreated).localeCompare(String(a.timeCreated))).slice(0, maxResults);
-  const images = await Promise.all(newest.map(async item => {
-    const file = item.name.split('/').pop(), entry = byFile.get(file);
-    return {
-      name: item.name, created: item.timeCreated, size: parseInt(item.size),
-      uid: entry?.uid || file.split('_')[0], subject: entry?.subject || '', className: entry?.className || '',
-      url: await generateSignedUrl(sa, bucket, item.name, 900),
-    };
-  }));
-  return { images, bucket, total: items.length, keepDays: PHOTO_DAYS, lastCleanup: await kvGet('studylens:photo-cleanup') };
-}
-
-// Daily: photos past their time are removed, a few hundred per run.
-async function cleanOldPhotos(sa) {
-  const { bucket, items } = await listPhotos(sa);
-  if (!bucket) return { deleted: 0, remaining: 0 };
-  const cutoff = Date.now() - PHOTO_DAYS * 86_400_000;
-  const old = items.filter(i => new Date(i.timeCreated).getTime() < cutoff).map(i => i.name);
-  const deleted = await deletePhotos(sa, bucket, old.slice(0, 300));
-  const result = { at: Date.now(), deleted, remaining: Math.max(0, old.length - deleted) };
-  await kvCommand(['SET', 'studylens:photo-cleanup', JSON.stringify(result)]);
-  return result;
 }
 
 // ── Small Upstash helpers ────────────────────────────────────────
@@ -484,10 +339,8 @@ async function deleteStudent(sa, uid) {
   } }) });
   const reportNames = reports.ok ? (await reports.json()).filter(row => row.document).map(row => row.document.name) : [];
   await commit(reportNames);
-  const { bucket, items } = await listPhotos(sa, `question-images/${uid}_`);
-  const photos = bucket ? await deletePhotos(sa, bucket, items.map(i => i.name)) : 0;
   scanCache = null;
-  return { records, reports: reportNames.length, photos };
+  return { records, reports: reportNames.length };
 }
 
 // ── System status ────────────────────────────────────────────────
@@ -521,18 +374,13 @@ async function runChecks(sa) {
   const check = async (id, name, run) => {
     try { return { id, name, ...(await run()) }; } catch (e) { return { id, name, state: 'bad', detail: e.message.slice(0, 160) }; }
   };
-  const [groq, gemini, database, accounts, saved, photos] = await Promise.all([
+  const [groq, gemini, database, accounts, saved] = await Promise.all([
     aiCheck('groq', 'Groq AI', aiKeys('GROQ'), pingGroq),
     aiCheck('gemini', 'Gemini AI', aiKeys('GEMINI'), pingGemini),
     check('database', 'Database', async () => { await firestoreRequest('reports?pageSize=1'); return { state: 'ok', detail: 'Reading normally.' }; }),
     check('accounts', 'Student sign-in', async () => ({ state: 'ok', detail: `${(await listAccounts()).length} accounts.` })),
     check('saved', 'Saved answers and agents', async () => (await kvCommand(['PING']) === 'PONG'
       ? { state: 'ok', detail: 'Upstash connected.' } : { state: 'bad', detail: 'Upstash is not responding.' })),
-    check('photos', 'Photo storage', async () => {
-      const { bucket, items, status } = await listPhotos(sa);
-      if (bucket) return { state: 'ok', detail: `${items.length} photos stored.` };
-      return { state: 'warn', known: true, detail: status === 404 ? 'No storage bucket, so photos are not saved. Answers still work.' : `Storage refused the request (${status}).` };
-    }),
   ]);
   const days = await healthDays(2).catch(() => null);
   const asked = (days || []).reduce((n, d) => n + d.requests, 0), lost = (days || []).reduce((n, d) => n + d.failed + d.limited, 0);
@@ -543,14 +391,14 @@ async function runChecks(sa) {
   const email = { id: 'email', name: 'Email updates', known: true,
     state: mail?.ok ? 'ok' : 'warn',
     detail: mail?.ok ? `Last sent ${new Date(mail.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST.` : mail?.error || 'No email sent yet.' };
-  return [groq, gemini, database, accounts, saved, photos, answers, email];
+  return [groq, gemini, database, accounts, saved, answers, email];
 }
 
 // ── Agents ───────────────────────────────────────────────────────
 // Agents read, check and report. Their only automatic change is removing a saved
 // answer they found to be wrong, so the next student gets a fresh one.
 const AGENTS = {
-  watchdog: { name: 'Watchdog', does: 'Tests the AI, database, sign-in and storage, and emails you when something breaks or recovers.', when: 'Every 3 hours' },
+  watchdog: { name: 'Watchdog', does: 'Tests the AI, database, sign-in and saved answers, and emails you when something breaks or recovers.', when: 'Every 3 hours' },
   reviewer: { name: 'Report Reviewer', does: 'Checks each student report with AI, writes a verdict and fix, and removes a wrong saved answer.', when: 'Every 3 hours' },
   quality: { name: 'Quality Patrol', does: 'Spot-checks recent answers nobody reported, and opens a report for any that look wrong.', when: 'Daily, about 8 AM' },
   digest: { name: 'Daily Digest', does: 'Emails the day\'s numbers and unusual activity, with AI advice on Mondays.', when: 'Daily, about 8 AM' },
@@ -758,11 +606,6 @@ async function isAgentCall(req, sa) {
 
 // ── Main Handler ──────────────────────────────────
 export default async function handler(req, res) {
-  // Vercel's daily schedule. It can only remove photos already past their time.
-  if (req.method === 'GET' && req.query?.cron === 'photos') {
-    try { return res.status(200).json(await cleanOldPhotos(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'))); }
-    catch (e) { console.error('[Photo cleanup]', e); return res.status(500).json({ error: e.message }); }
-  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
@@ -832,7 +675,7 @@ export default async function handler(req, res) {
           entries: entries.slice(offset, offset + limit).map(e => ({
             path: e.path, uid: e.uid, id: e.id, ts: e.ts, mode: e.mode,
             question: (e.question || '').slice(0, 160), subject: e.subject || '',
-            className: e.className || '', hasImage: !!e.imageStorageUrl,
+            className: e.className || '',
           })),
         });
       }
@@ -843,10 +686,7 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Invalid entry.' });
         }
         const e = parseDoc(await firestoreRequest(path.split('/').map(encodeURIComponent).join('/')));
-        let imageUrl = null;
-        const file = /^https:\/\/storage\.googleapis\.com\/([^/]+)\/(.+)$/.exec(e.imageStorageUrl || '');
-        if (file && storageBuckets(serviceAccount).includes(file[1])) { try { imageUrl = await generateSignedUrl(serviceAccount, file[1], decodeURIComponent(file[2]), 900); } catch (_) {} }
-        return res.status(200).json({ question: e.question || '', answer: e.answer || '', imageUrl });
+        return res.status(200).json({ question: e.question || '', answer: e.answer || '' });
       }
 
       case 'stats': {
@@ -873,9 +713,6 @@ export default async function handler(req, res) {
           kvState: await getKVState(),
         });
       }
-
-      case 'images':
-        return res.status(200).json(await listStorageImages(serviceAccount, limit));
 
       case 'kv':
         return res.status(200).json({ kvState: await getKVState() });

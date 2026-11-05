@@ -2611,7 +2611,7 @@ function slPrivacy() {
     <p>This policy explains what StudyLens AI collects, why, and the choices you have.</p>
     <h3>What we collect</h3><ul>
       <li><b>Account details:</b> your name, email address and profile picture from Google sign-in.</li>
-      <li><b>Study content:</b> the questions you type or speak, photos you add, your board, class and subject, and the answers you receive.</li>
+      <li><b>Study content:</b> the questions you type or speak, your board, class and subject, and the answers you receive.</li>
       <li><b>Things you create:</b> saved answers, bookmarks, folders and family profiles.</li>
       <li><b>Settings:</b> your theme, language and text size stay on your device.</li></ul>
     <h3>How we use it</h3><ul>
@@ -2619,10 +2619,10 @@ function slPrivacy() {
       <li>To keep your history and profiles in step across your devices.</li>
       <li>To apply fair-use limits, prevent misuse and improve answer quality.</li></ul>
     <p>We do not sell your personal information.</p>
-    <h3>Review of questions and photos</h3>
-    <p>Questions are stored with your account. Photos you add are also stored, and the app's administrator can review questions and photos to check quality and prevent misuse. Photos are deleted automatically after 30 days. Please avoid sharing photos that show faces, addresses or other personal details.</p>
+    <h3>Questions and photos</h3>
+    <p>Questions are stored with your account, and the app's administrator can review them to check quality and prevent misuse. Automated checks may also review answers for accuracy. Photos you add are sent to the AI to answer your question and are not stored on our servers. A small preview stays on your device in your history. Please avoid sharing photos that show faces, addresses or other personal details.</p>
     <h3>Services we rely on</h3><ul>
-      <li><b>Google:</b> sign-in, data storage (Firebase), AI answers (Gemini) and read-aloud voice.</li>
+      <li><b>Google:</b> sign-in, data storage (Firebase), AI answers and reading photos (Gemini), and read-aloud voice.</li>
       <li><b>Groq:</b> AI answers.</li>
       <li><b>Upstash:</b> a short-term store that keeps common answers for up to 24 hours so replies are faster.</li>
       <li><b>Vercel:</b> website hosting.</li></ul>
@@ -2631,9 +2631,8 @@ function slPrivacy() {
     <p>StudyLens AI is made for school students. Younger children should use it with the permission and help of a parent, guardian or teacher.</p>
     <h3>Your choices</h3><ul>
       <li>Clear saved answers from Settings. This removes them from the active profile.</li>
-      <li>Photos already stored for review are not removed by clearing saved answers. They are deleted automatically after 30 days.</li>
       <li>If you report an answer, the question, answer and your note are saved with your account details so we can check it.</li>
-      <li>The administrator can delete a student's stored history, reports and photos.</li>
+      <li>The administrator can delete a student's stored history and reports.</li>
       <li>Sign out at any time from the menu.</li></ul>
     <h3>Changes</h3>
     <p>We may update this policy as the app changes. The date above shows the latest version.</p>`;
@@ -3336,8 +3335,6 @@ async function saveToHistory(payload, answerText, answerHtml, imageDataUrl) {
     bookmarked: false,
     payload: { ...payload, imageBase64: undefined }
   };
-  if (payload.mode === 'photo' && window._photoUrl) entry.imageStorageUrl = window._photoUrl;
-  window._photoUrl = null;
   sessionHistory.push(entry);
   // Set the current item id for bookmark button
   setBookmarkBtnState(id);
@@ -4823,7 +4820,6 @@ async function askQuestion() {
       if (!res.ok || data.error) {
         throw new Error(data.error || `Server error (${res.status})`);
       }
-      window._photoUrl = data.imageStorageUrl || null;
 
       stopThinkingMessages();
       hideThinking();

@@ -72,11 +72,6 @@
  *   → link it to this project → Redeploy.
  * That's it. The KV_KEY below stores exhausted keys across cold starts.
  * If KV is not linked, the code falls back silently to in-memory rotation.
- *
- * ── IMAGE LOGGING TO FIREBASE STORAGE ────────────────────────────────────────
- * Photo questions are now saved to Firebase Storage under question-images/
- * This lets the admin panel review uploaded images.
- * Requires FIREBASE_SERVICE_ACCOUNT env var (JSON string of service account key).
  */
 
 export const config = {
@@ -752,94 +747,6 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
   sseDone(res);
 }
 
-// ── Firebase Storage Image Upload ─────────────────────────────────────────────
-// Saves photo questions to Firebase Storage so admin can review them.
-// Runs fire-and-forget (doesn't block the answer).
-async function uploadImageToStorage(imageBase64, imageMime, uid, subject, className) {
-  try {
-    const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!saRaw) return null;
-    const sa = JSON.parse(saRaw);
-
-    // Get Firebase access token
-    const token = await getFirebaseStorageToken(sa);
-
-    // Generate a unique filename
-    const ts   = Date.now();
-    const ext  = (imageMime || 'image/jpeg').split('/')[1] || 'jpg';
-    const safeUid = (uid || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-    const filename = `question-images/${safeUid}_${ts}.${ext}`;
-
-    // Upload to Firebase Storage via REST API
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    // Newer Firebase projects use .firebasestorage.app, older ones .appspot.com
-    const buckets = [process.env.FIREBASE_STORAGE_BUCKET, `${sa.project_id}.firebasestorage.app`, `${sa.project_id}.appspot.com`].filter(Boolean);
-    for (const bucket of buckets) {
-      const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(filename)}`;
-      const uploadRes = await fetch(uploadUrl, {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': imageMime || 'image/jpeg' },
-        body: imageBuffer,
-      });
-      if (uploadRes.ok) return `https://storage.googleapis.com/${bucket}/${filename}`;
-      console.warn('[Storage] Upload failed:', bucket, uploadRes.status, await uploadRes.text());
-      if (uploadRes.status !== 404) return null;
-    }
-    return null;
-
-  } catch (e) {
-    console.warn('[Storage] Upload error:', e.message);
-    return null;
-  }
-}
-
-// ── Firebase Storage token ────────────────────────────────────────────────────
-async function getFirebaseStorageToken(sa) {
-  const now = Math.floor(Date.now() / 1000);
-  const header  = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: sa.client_email,
-    sub: sa.client_email,
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write https://www.googleapis.com/auth/firebase',
-  };
-
-  const encode = obj => Buffer.from(JSON.stringify(obj)).toString('base64url');
-  const toSign = `${encode(header)}.${encode(payload)}`;
-
-  const keyData   = sa.private_key.replace(/\\n/g, '\n');
-  const pemBody   = keyData.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '');
-  const binaryKey = Buffer.from(pemBody, 'base64');
-
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8', binaryKey,        // not .buffer: a small Buffer shares a larger memory pool
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['sign']
-  );
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5', cryptoKey,
-    new TextEncoder().encode(toSign)
-  );
-  const sigB64 = Buffer.from(signature).toString('base64url');
-  const jwt = `${toSign}.${sigB64}`;
-
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
-  });
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error('Could not get Storage token');
-  return tokenData.access_token;
-}
-
-// ── Save history entry to Firestore ──────────────────────────────────────────
-// Only scalar fields stored here (no HTML blobs, no base64, no nested objects).
-// The client-side saveHistoryEntryToFirestore has the same constraint.
-// Firestore limit is 1 MB per document — keeping entries lean avoids silent
-// write failures that cause history to disappear on refresh.
 // ── Per-subject temperature ───────────────────────────────────────────────────
 // Precise subjects (maths/physics) need low temperature for accuracy.
 // Creative/language subjects benefit from slightly higher temperature.
@@ -1870,23 +1777,10 @@ async function handleRequest(req, res) {
       });
     }
 
-    // Fire-and-forget image upload (only on first question, not follow-ups)
-    const isFollowUp = Array.isArray(history) && history.length > 1;
-    const imageUploadPromise = isFollowUp
-      ? Promise.resolve(null)
-      : uploadImageToStorage(imageBase64, imageMime, uid, subject, className).catch(e => {
-          console.warn('[Storage] Upload failed silently:', e.message);
-          return null;
-        });
-
     const result = await askGemini(geminiKeys, ctx);
 
     if (result.answer) {
-      const storageUrl = await Promise.race([
-        imageUploadPromise,
-        new Promise(r => setTimeout(() => r(null), 2000))
-      ]);
-      return res.status(200).json({ answer: result.answer, imageStorageUrl: storageUrl || undefined });
+      return res.status(200).json({ answer: result.answer });
     }
 
     if (result.error === 'quota') {
