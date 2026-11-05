@@ -2051,9 +2051,10 @@ body.sl-lock { overflow: hidden; }
 .share-card {
   --bg: #0f1117; --surface: #181c27; --surface2: #1f2435; --border: #2a2f42; --accent: #4f8ef7; --accent2: #f7c948; --green: #3ecf8e; --text: #eef0f8; --muted: #9aa2bf;
   --violet: #a78bfa; --rose: #f78f8f; --cyan: #06b6d4; --text-scale: 1;
-  position: fixed; left: -2000px; top: 0; z-index: -1; width: 540px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 14px;
+  width: 540px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 14px;
   background: linear-gradient(160deg, #141a2e, #0f1117 55%); color: var(--text); font-family: var(--font-body);
 }
+.share-stage { position: fixed; left: -2000px; top: 0; z-index: -1; }
 .share-top { display: flex; align-items: center; gap: 12px; }
 .share-top img { width: 46px; height: 46px; border-radius: 12px; }
 .share-top b { display: block; font: 800 1.25rem var(--font-head); color: #fff; line-height: 1.2; }
@@ -3049,7 +3050,11 @@ function slShareCard() {
   const body = card.querySelector('.result-body');
   body.append(...[...source.cloneNode(true).childNodes]);
   body.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-  document.body.appendChild(card);
+  // the card sits inside an off-screen holder, so the picture itself has no offset
+  const stage = document.createElement('div');
+  stage.className = 'share-stage';
+  stage.appendChild(card);
+  document.body.appendChild(stage);
   return card;
 }
 async function slShareImage(card) {
@@ -3094,7 +3099,7 @@ async function shareAnswer() {
     console.warn('[Share] image failed:', e.message);
     slDialog({ mark: 'bad', title: g.failed, body: g.failedBody, onBack: close, actions: [{ label: a.close, run: close }, { label: g.shareLink, style: 'primary', run: () => { close(); textOnly(); } }] });
   } finally {
-    card?.remove();
+    card?.parentNode?.remove();
   }
 }
 
