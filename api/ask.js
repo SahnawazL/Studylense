@@ -702,6 +702,7 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
       console.log('[Cache/SSE] HIT:', cacheKey.slice(0, 80));
       if (ctx.metric) ctx.metric.cached = true;
       sseChunk(res, cached);   // single chunk = instant for the student
+      await recordHealth(ctx.metric, res);
       sseDone(res);
       return;
     }
@@ -737,6 +738,7 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
   }
 
   if (!success) {
+    await recordHealth(ctx.metric, res);
     sseError(res, '❌ Connection error. Please check your internet and try again.');
     return;
   }
@@ -746,6 +748,7 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
     cacheSet(kv, cacheKey, fullText).catch(() => {});
   }
 
+  await recordHealth(ctx.metric, res);
   sseDone(res);
 }
 
@@ -1798,6 +1801,10 @@ async function handleRequest(req, res) {
   // FIX: Pass history through to askGroq and askGemini via ctx.
   const ctx = { question, imageBase64, imageMime, className, subject, lang, board, stream, mode, simplify, history, subjectType, chapter };
   ctx.metric = req.slMetric = (mode === 'text' || mode === 'photo') ? { start: Date.now(), model: null, cached: false, errors: [] } : null;
+  if (ctx.metric) {
+    const reply = res.json.bind(res);
+    res.json = body => recordHealth(ctx.metric, res).then(() => reply(body));
+  }
 
   // ── STREAMING TEXT MODE ──────────────────────────────────────────────────────
   // When the client sends ?stream=1 and mode is text, bypass the normal JSON
@@ -1973,8 +1980,10 @@ async function verifiedUid(req) {
 }
 
 // ── AI health: one small daily record, shown in the admin dashboard ──
+// Runs before the reply finishes: Vercel can freeze a function once it has responded.
 async function recordHealth(m, res) {
-  if (!m) return;
+  if (!m || m.recorded) return;
+  m.recorded = true;
   try {
     const kv = await getKV();
     if (!kv) return;

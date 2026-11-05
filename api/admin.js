@@ -542,7 +542,7 @@ async function runChecks(sa) {
   const mail = await kvGet('agents:mail');
   const email = { id: 'email', name: 'Email updates', known: true,
     state: mail?.ok ? 'ok' : 'warn',
-    detail: mail?.ok ? `Last sent ${new Date(mail.at).toUTCString()}.` : mail?.error || 'No email sent yet.' };
+    detail: mail?.ok ? `Last sent ${new Date(mail.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST.` : mail?.error || 'No email sent yet.' };
   return [groq, gemini, database, accounts, saved, photos, answers, email];
 }
 
@@ -702,7 +702,7 @@ const AGENT_RUN = {
     const subjects = {};
     recent.forEach(e => { if (e.subject) subjects[e.subject] = (subjects[e.subject] || 0) + 1; });
     const top = Object.entries(subjects).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s, n]) => `${s} (${n})`).join(', ') || 'None';
-    const problems = checks.filter(c => c.state !== 'ok');
+    const problems = checks.filter(c => c.state !== 'ok' && c.id !== 'email');   // this email is the proof that email works
     let body = mailTable([
       ['New students', accounts.filter(a => Number(a.createdAt) > dayAgo).length], ['Active students', Object.keys(perStudent).length],
       ['Questions', recent.length], ['Top subjects', top], ['Total students', accounts.length],
@@ -719,7 +719,8 @@ const AGENT_RUN = {
       const advice = await askAIJson(`You advise the owner of StudyLens AI, a free homework app for students in Assam, India. Use only these weekly totals: ${JSON.stringify({ questions: week.length, students: new Set(week.map(e => e.uid)).size, totalStudents: accounts.length, subjects: weekSubjects, openReports: open })}. Reply with JSON only: {"tips":["three short, specific, practical suggestions"]}`, 600);
       if (Array.isArray(advice?.tips) && advice.tips.length) body += `<h3 style="font-size:15px;margin:16px 0 4px">This week's advice</h3><ul>${advice.tips.slice(0, 3).map(t => `<li>${safe(String(t).slice(0, 220))}</li>`).join('')}</ul>`;
     }
-    await queueMail(`StudyLens daily: ${recent.length} questions, ${Object.keys(perStudent).length} active students`, mailHtml('Your daily update', body));
+    const activeCount = Object.keys(perStudent).length, plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    await queueMail(`StudyLens daily: ${plural(recent.length, 'question')}, ${plural(activeCount, 'active student')}`, mailHtml('Your daily update', body));
     return { ok: true, summary: `Digest ready: ${recent.length} questions, ${open} open reports.` };
   },
 };
