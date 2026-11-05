@@ -35,7 +35,7 @@ if (mail.length) {
   const user = process.env.GMAIL_USER, pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
   if (!user || !pass) {
     console.log('::warning::Add the GMAIL_USER and GMAIL_APP_PASSWORD secrets to send email. Emails stay queued.');
-    await call({ action: 'mailResult', ok: false, error: 'Email secrets are not set' });
+    await call({ action: 'mailResult', ok: false, error: 'Email secrets are not set.' });
   } else {
     try {
       const { default: nodemailer } = await import('nodemailer');
