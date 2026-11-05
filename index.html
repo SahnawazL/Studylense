@@ -3081,6 +3081,11 @@ async function slShareCards() {
     picture.style.cssText = 'display:block;width:100%;height:auto;border-radius:6px';
     svg.replaceWith(picture);
   });
+  // Icons point at a shared set the picture can't reach, so each carries its own shape
+  draftBody.querySelectorAll('svg.ic use').forEach(use => {
+    const shape = document.querySelector(use.getAttribute('href'));
+    if (shape) use.parentNode.innerHTML = shape.innerHTML;
+  });
   await Promise.all([...draft.querySelectorAll('img')].map(i => i.decode().catch(() => {})));
 
   // Measure every block in place, then fill pages block by block.
