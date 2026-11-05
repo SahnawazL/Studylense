@@ -2084,6 +2084,31 @@ body.sl-lock { overflow: hidden; }
 .sl-faq p { margin: 0; padding: 0 .85rem .8rem; font-size: .87rem; line-height: 1.6; color: var(--muted); }
 .sl-del-label { display: block; margin: .8rem 0 0; font-size: .8rem; font-weight: 600; color: var(--muted); text-align: left; }
 .sl-dlg-acts button[aria-disabled="true"] { opacity: .4; }
+.sl-dlg.swap > * { animation: slDlgSwap .26s ease both; }
+@keyframes slDlgSwap { from { opacity: 0; transform: translateY(6px); } }
+.sl-ring { width: 72px; height: 72px; }
+.sl-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); fill: none; stroke-width: 4; stroke: var(--border); }
+.sl-ring #slRing { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 176; stroke-dashoffset: 176; transition: stroke-dashoffset .35s ease; }
+.sl-ring b { font: 700 .92rem var(--font-head); color: var(--text); font-variant-numeric: tabular-nums; }
+.sl-steps { list-style: none; margin: 1rem 0 0; padding: 0; text-align: left; }
+.sl-steps li { display: flex; align-items: center; gap: .6rem; padding: .5rem .1rem; font-size: .86rem; color: var(--muted); border-top: 1px solid var(--border); transition: color .25s; }
+.sl-steps li:first-child { border-top: 0; }
+.sl-steps li.on, .sl-steps li.done { color: var(--text); }
+.sl-step-ic { flex: none; width: 18px; height: 18px; display: grid; place-items: center; }
+.sl-step-ic::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.sl-steps li.on .sl-step-ic::before { width: 15px; height: 15px; background: none; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.sl-steps li.done .sl-step-ic::before { display: none; }
+.sl-step-ic svg { display: none; width: 18px; height: 18px; fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.sl-steps li.done .sl-step-ic svg { display: block; }
+.sl-steps li.done .sl-step-ic path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: slDraw .26s ease forwards; }
+.sl-step-name { flex: 1; min-width: 0; }
+.sl-step-n { flex: none; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sl-tick-line { height: 1.3rem; margin: .55rem 0 0; overflow: hidden; font-size: .78rem; color: var(--muted); text-align: left; }
+.sl-tick-line span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: line-through; animation: slDlgSwap .22s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-dlg.swap > *, .sl-tick-line span { animation: none; }
+  .sl-ring #slRing { transition: none; }
+}
 .sl-del-hint { margin: .45rem 0 0; font-size: .8rem; font-weight: 600; color: var(--danger); text-align: left; }
 .sl-del-shake { border-color: var(--danger); animation: slDelShake .3s; }
 @keyframes slDelShake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
@@ -2846,6 +2871,7 @@ function slA() { return SL_AUTH[typeof currentLang === 'string' ? currentLang : 
 function slMark(kind, user) {
   if (kind === 'none') return '';
   if (kind === 'busy') return '<div class="sl-dlg-mark"><div class="sl-spin"></div></div>';
+  if (kind === 'ring') return '<div class="sl-dlg-mark sl-ring"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28"/><circle id="slRing" cx="32" cy="32" r="28"/></svg><b id="slRingN">0%</b></div>';
   if (kind === 'done') return '<div class="sl-dlg-mark"><svg class="sl-dlg-tick" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="24"/><path d="m19 31 8 8 15-17"/></svg></div>';
   if (kind === 'bad') return '<div class="sl-dlg-mark bad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></div>';
   if (kind === 'info') return '<div class="sl-dlg-mark info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></svg></div>';
@@ -2863,7 +2889,10 @@ function slDialog(o) {
     if (!st.pushed) { history.pushState({ sl: slLayer, dlg: 1 }, '', location.href); st.pushed = true; }
   }
   st.onBack = o.onBack || null;
-  wrap.querySelector('.sl-dlg').innerHTML = slMark(o.mark, o.user) +
+  const box = wrap.querySelector('.sl-dlg');
+  box.classList.remove('swap');
+  if (wrap.classList.contains('open')) { void box.offsetWidth; box.classList.add('swap'); }
+  box.innerHTML = slMark(o.mark, o.user) +
     `<h3 id="slDlgTitle">${slEsc(o.title)}</h3>` +
     (o.body ? `<p id="slDlgBody">${slEsc(o.body)}</p>` : '') +
     (o.who ? `<p class="sl-dlg-who">${slEsc(o.who)}</p>` : '') +
@@ -3209,8 +3238,32 @@ async function shareAnswer() {
 
 // Delete account. The word DELETE stops accidents, and Google sign-in is asked for
 // again so nobody holding an unlocked phone can remove someone else's account.
-var SL_DEL = {"en":{"item":"Delete account","itemHint":"Permanently removes your account and everything saved in it.","title":"Delete your account?","body":"This permanently removes your account, saved answers, bookmarks, family profiles and reports. This cannot be undone.","why":"Why are you leaving? (optional)","reasons":[["not_useful","Not useful for me"],["wrong_answers","Answers were wrong"],["privacy","Privacy reasons"],["other","Something else"]],"type":"Type DELETE to confirm","confirm":"Delete","confirming":"Confirm it's you","confirmingBody":"Choose your Google account to continue.","deleting":"Deleting your account…","done":"Your account is deleted","doneBody":"Everything saved in it has been removed.","failed":"Couldn't delete your account","wrongAccount":"That's a different Google account. Choose the account you're deleting.","faqQ":"How do I delete my account?","faqA":"Open Settings and tap Delete account. Confirm with your Google account, and your account and everything saved in it are permanently removed.","typeHint":"Type DELETE in the box first.","notDeleted":"Your account was not deleted","notDeletedBody":"The Google window closed before it finished. Try again and choose your account."},"bn":{"item":"অ্যাকাউন্ট মুছুন","itemHint":"আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে দেয়।","title":"অ্যাকাউন্ট মুছবেন?","body":"এতে আপনার অ্যাকাউন্ট, সংরক্ষিত উত্তর, বুকমার্ক, পারিবারিক প্রোফাইল ও রিপোর্ট স্থায়ীভাবে মুছে যাবে। এটি আর ফেরানো যাবে না।","why":"কেন চলে যাচ্ছেন? (ঐচ্ছিক)","reasons":[["not_useful","আমার কাজে আসছে না"],["wrong_answers","উত্তর ভুল ছিল"],["privacy","গোপনীয়তার কারণে"],["other","অন্য কারণ"]],"type":"নিশ্চিত করতে DELETE লিখুন","confirm":"মুছুন","confirming":"আপনিই কিনা নিশ্চিত করুন","confirmingBody":"এগিয়ে যেতে আপনার Google অ্যাকাউন্ট বেছে নিন।","deleting":"অ্যাকাউন্ট মোছা হচ্ছে…","done":"আপনার অ্যাকাউন্ট মুছে গেছে","doneBody":"এতে সংরক্ষিত সবকিছু সরিয়ে দেওয়া হয়েছে।","failed":"অ্যাকাউন্ট মোছা যায়নি","wrongAccount":"এটি অন্য Google অ্যাকাউন্ট। যে অ্যাকাউন্টটি মুছছেন সেটি বেছে নিন।","faqQ":"অ্যাকাউন্ট কীভাবে মুছব?","faqA":"সেটিংস খুলে অ্যাকাউন্ট মুছুন চাপুন। Google অ্যাকাউন্ট দিয়ে নিশ্চিত করলে আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে যাবে।","typeHint":"আগে উপরের বাক্সে DELETE লিখুন।","notDeleted":"আপনার অ্যাকাউন্ট মুছে ফেলা হয়নি","notDeletedBody":"Google উইন্ডো শেষ হওয়ার আগেই বন্ধ হয়ে গেছে। আবার চেষ্টা করুন এবং আপনার অ্যাকাউন্ট বেছে নিন।"},"hi":{"item":"खाता हटाएँ","itemHint":"आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हटा देता है।","title":"अपना खाता हटाएँ?","body":"इससे आपका खाता, सहेजे गए उत्तर, बुकमार्क, पारिवारिक प्रोफ़ाइल और रिपोर्ट स्थायी रूप से हट जाएँगे। इसे वापस नहीं किया जा सकता।","why":"आप क्यों जा रहे हैं? (वैकल्पिक)","reasons":[["not_useful","मेरे काम का नहीं"],["wrong_answers","उत्तर गलत थे"],["privacy","गोपनीयता के कारण"],["other","कुछ और"]],"type":"पुष्टि के लिए DELETE लिखें","confirm":"हटाएँ","confirming":"पुष्टि करें कि यह आप हैं","confirmingBody":"आगे बढ़ने के लिए अपना Google खाता चुनें।","deleting":"आपका खाता हटाया जा रहा है…","done":"आपका खाता हटा दिया गया है","doneBody":"उसमें सहेजी गई हर चीज़ हटा दी गई है।","failed":"खाता नहीं हटाया जा सका","wrongAccount":"यह कोई दूसरा Google खाता है। वही खाता चुनें जिसे आप हटा रहे हैं।","faqQ":"अपना खाता कैसे हटाएँ?","faqA":"सेटिंग्स खोलें और खाता हटाएँ दबाएँ। Google खाते से पुष्टि करने पर आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हट जाएगी।","typeHint":"पहले ऊपर के बॉक्स में DELETE लिखें।","notDeleted":"आपका अकाउंट डिलीट नहीं हुआ","notDeletedBody":"Google विंडो पूरा होने से पहले बंद हो गई। फिर से कोशिश करें और अपना अकाउंट चुनें।"},"as":{"item":"একাউণ্ট মচক","itemHint":"আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰায়।","title":"আপোনাৰ একাউণ্ট মচিবনে?","body":"ইয়াৰ ফলত আপোনাৰ একাউণ্ট, সংৰক্ষিত উত্তৰ, বুকমাৰ্ক, পৰিয়ালৰ প্ৰফাইল আৰু ৰিপ'ৰ্ট স্থায়ীভাৱে আঁতৰি যাব। ইয়াক ঘূৰাই আনিব নোৱাৰি।","why":"আপুনি কিয় গুচি গৈছে? (ঐচ্ছিক)","reasons":[["not_useful","মোৰ কামত নাহে"],["wrong_answers","উত্তৰ ভুল আছিল"],["privacy","গোপনীয়তাৰ কাৰণে"],["other","আন কিবা"]],"type":"নিশ্চিত কৰিবলৈ DELETE লিখক","confirm":"মচক","confirming":"আপুনিয়েই বুলি নিশ্চিত কৰক","confirmingBody":"আগবাঢ়িবলৈ আপোনাৰ Google একাউণ্ট বাছনি কৰক।","deleting":"আপোনাৰ একাউণ্ট মচা হৈছে…","done":"আপোনাৰ একাউণ্ট মচা হ'ল","doneBody":"তাত সংৰক্ষিত সকলো আঁতৰোৱা হৈছে।","failed":"একাউণ্ট মচিব পৰা নগ'ল","wrongAccount":"এইটো আন এটা Google একাউণ্ট। যিটো মচিছে সেইটো বাছনি কৰক।","faqQ":"মোৰ একাউণ্ট কেনেকৈ মচিম?","faqA":"ছেটিংছ খুলি একাউণ্ট মচক টিপক। Google একাউণ্টেৰে নিশ্চিত কৰিলে আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰি যাব।","typeHint":"প্ৰথমে ওপৰৰ বাকচত DELETE লিখক।","notDeleted":"আপোনাৰ একাউণ্ট ডিলিট হোৱা নাই","notDeletedBody":"Google উইণ্ড' শেষ হোৱাৰ আগতে বন্ধ হ'ল। পুনৰ চেষ্টা কৰক আৰু আপোনাৰ একাউণ্ট বাছনি কৰক।"}};
+var SL_DEL = {"en":{"item":"Delete account","itemHint":"Permanently removes your account and everything saved in it.","title":"Delete your account?","body":"This permanently removes your account, saved answers, bookmarks, family profiles and reports. This cannot be undone.","why":"Why are you leaving? (optional)","reasons":[["not_useful","Not useful for me"],["wrong_answers","Answers were wrong"],["privacy","Privacy reasons"],["other","Something else"]],"type":"Type DELETE to confirm","confirm":"Delete","confirming":"Confirm it's you","confirmingBody":"Choose your Google account to continue.","deleting":"Deleting your account…","done":"Your account is deleted","doneBody":"Everything saved in it has been removed.","failed":"Couldn't delete your account","wrongAccount":"That's a different Google account. Choose the account you're deleting.","faqQ":"How do I delete my account?","faqA":"Open Settings and tap Delete account. Confirm with your Google account, and your account and everything saved in it are permanently removed.","typeHint":"Type DELETE in the box first.","notDeleted":"Your account was not deleted","notDeletedBody":"The Google window closed before it finished. Try again and choose your account.","clearTitle":"Clear saved answers?","clearBody":"These will be removed from this device and your account. This cannot be undone.","clearBodyDevice":"These will be removed from this device. This cannot be undone.","clearGo":"Clear","clearing":"Clearing saved answers","clearDone":"Saved answers cleared","clearFailed":"Couldn't finish clearing","nothing":"Nothing to clear","nothingBody":"There are no saved answers here.","checking":"Checking what is saved…","deletingTitle":"Deleting your account","rowAnswers":"Saved answers","rowBookmarks":"Bookmarks","rowProfiles":"Family profiles","rowReports":"Reports","rowOther":"Other records","rowDevice":"This device","rowAccount":"Your account","xOfY":"{a} of {b}","removed":"{n} removed","cleared":"Removed","none":"None","partial":"{a} of {b} saved answers were removed. The rest are still saved. Please try again.","lost":"The connection was lost. Some data may already be removed. Please open the app and check.","profTitle":"Remove {name}'s profile?","profBody":"This removes the profile from your list.","profGo":"Remove","folderTitle":"New folder","folderHolder":"Physics, Revision…","folderGo":"Create"},"bn":{"item":"অ্যাকাউন্ট মুছুন","itemHint":"আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে দেয়।","title":"অ্যাকাউন্ট মুছবেন?","body":"এতে আপনার অ্যাকাউন্ট, সংরক্ষিত উত্তর, বুকমার্ক, পারিবারিক প্রোফাইল ও রিপোর্ট স্থায়ীভাবে মুছে যাবে। এটি আর ফেরানো যাবে না।","why":"কেন চলে যাচ্ছেন? (ঐচ্ছিক)","reasons":[["not_useful","আমার কাজে আসছে না"],["wrong_answers","উত্তর ভুল ছিল"],["privacy","গোপনীয়তার কারণে"],["other","অন্য কারণ"]],"type":"নিশ্চিত করতে DELETE লিখুন","confirm":"মুছুন","confirming":"আপনিই কিনা নিশ্চিত করুন","confirmingBody":"এগিয়ে যেতে আপনার Google অ্যাকাউন্ট বেছে নিন।","deleting":"অ্যাকাউন্ট মোছা হচ্ছে…","done":"আপনার অ্যাকাউন্ট মুছে গেছে","doneBody":"এতে সংরক্ষিত সবকিছু সরিয়ে দেওয়া হয়েছে।","failed":"অ্যাকাউন্ট মোছা যায়নি","wrongAccount":"এটি অন্য Google অ্যাকাউন্ট। যে অ্যাকাউন্টটি মুছছেন সেটি বেছে নিন।","faqQ":"অ্যাকাউন্ট কীভাবে মুছব?","faqA":"সেটিংস খুলে অ্যাকাউন্ট মুছুন চাপুন। Google অ্যাকাউন্ট দিয়ে নিশ্চিত করলে আপনার অ্যাকাউন্ট ও তাতে সংরক্ষিত সবকিছু স্থায়ীভাবে মুছে যাবে।","typeHint":"আগে উপরের বাক্সে DELETE লিখুন।","notDeleted":"আপনার অ্যাকাউন্ট মুছে ফেলা হয়নি","notDeletedBody":"Google উইন্ডো শেষ হওয়ার আগেই বন্ধ হয়ে গেছে। আবার চেষ্টা করুন এবং আপনার অ্যাকাউন্ট বেছে নিন।","clearTitle":"সংরক্ষিত উত্তর মুছবেন?","clearBody":"এগুলি এই ডিভাইস এবং আপনার অ্যাকাউন্ট থেকে মুছে যাবে। এটি আর ফেরানো যাবে না।","clearBodyDevice":"এগুলি এই ডিভাইস থেকে মুছে যাবে। এটি আর ফেরানো যাবে না।","clearGo":"মুছুন","clearing":"সংরক্ষিত উত্তর মোছা হচ্ছে","clearDone":"সংরক্ষিত উত্তর মুছে ফেলা হয়েছে","clearFailed":"মোছা শেষ করা যায়নি","nothing":"মোছার কিছু নেই","nothingBody":"এখানে কোনো সংরক্ষিত উত্তর নেই।","checking":"কী কী সংরক্ষিত আছে দেখা হচ্ছে…","deletingTitle":"আপনার অ্যাকাউন্ট মুছে ফেলা হচ্ছে","rowAnswers":"সংরক্ষিত উত্তর","rowBookmarks":"বুকমার্ক","rowProfiles":"পরিবারের প্রোফাইল","rowReports":"রিপোর্ট","rowOther":"অন্যান্য রেকর্ড","rowDevice":"এই ডিভাইস","rowAccount":"আপনার অ্যাকাউন্ট","xOfY":"{b}টির মধ্যে {a}টি","removed":"{n}টি মুছে ফেলা হয়েছে","cleared":"মুছে ফেলা হয়েছে","none":"নেই","partial":"{b}টির মধ্যে {a}টি উত্তর মুছে ফেলা হয়েছে। বাকিগুলি এখনও সংরক্ষিত আছে। আবার চেষ্টা করুন।","lost":"সংযোগ বিচ্ছিন্ন হয়েছে। কিছু তথ্য হয়তো ইতিমধ্যে মুছে গেছে। অ্যাপ খুলে দেখে নিন।","profTitle":"{name}-এর প্রোফাইল সরাবেন?","profBody":"এটি আপনার তালিকা থেকে প্রোফাইলটি সরিয়ে দেবে।","profGo":"সরান","folderTitle":"নতুন ফোল্ডার","folderHolder":"পদার্থবিদ্যা, রিভিশন…","folderGo":"তৈরি করুন"},"hi":{"item":"खाता हटाएँ","itemHint":"आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हटा देता है।","title":"अपना खाता हटाएँ?","body":"इससे आपका खाता, सहेजे गए उत्तर, बुकमार्क, पारिवारिक प्रोफ़ाइल और रिपोर्ट स्थायी रूप से हट जाएँगे। इसे वापस नहीं किया जा सकता।","why":"आप क्यों जा रहे हैं? (वैकल्पिक)","reasons":[["not_useful","मेरे काम का नहीं"],["wrong_answers","उत्तर गलत थे"],["privacy","गोपनीयता के कारण"],["other","कुछ और"]],"type":"पुष्टि के लिए DELETE लिखें","confirm":"हटाएँ","confirming":"पुष्टि करें कि यह आप हैं","confirmingBody":"आगे बढ़ने के लिए अपना Google खाता चुनें।","deleting":"आपका खाता हटाया जा रहा है…","done":"आपका खाता हटा दिया गया है","doneBody":"उसमें सहेजी गई हर चीज़ हटा दी गई है।","failed":"खाता नहीं हटाया जा सका","wrongAccount":"यह कोई दूसरा Google खाता है। वही खाता चुनें जिसे आप हटा रहे हैं।","faqQ":"अपना खाता कैसे हटाएँ?","faqA":"सेटिंग्स खोलें और खाता हटाएँ दबाएँ। Google खाते से पुष्टि करने पर आपका खाता और उसमें सहेजी गई हर चीज़ स्थायी रूप से हट जाएगी।","typeHint":"पहले ऊपर के बॉक्स में DELETE लिखें।","notDeleted":"आपका अकाउंट डिलीट नहीं हुआ","notDeletedBody":"Google विंडो पूरा होने से पहले बंद हो गई। फिर से कोशिश करें और अपना अकाउंट चुनें।","clearTitle":"सेव किए गए जवाब हटाएं?","clearBody":"ये इस डिवाइस और आपके अकाउंट से हटा दिए जाएंगे। इसे वापस नहीं किया जा सकता।","clearBodyDevice":"ये इस डिवाइस से हटा दिए जाएंगे। इसे वापस नहीं किया जा सकता।","clearGo":"हटाएं","clearing":"सेव किए गए जवाब हटाए जा रहे हैं","clearDone":"सेव किए गए जवाब हटा दिए गए","clearFailed":"हटाना पूरा नहीं हो सका","nothing":"हटाने के लिए कुछ नहीं है","nothingBody":"यहां कोई सेव किया गया जवाब नहीं है।","checking":"देखा जा रहा है कि क्या-क्या सेव है…","deletingTitle":"आपका अकाउंट हटाया जा रहा है","rowAnswers":"सेव किए गए जवाब","rowBookmarks":"बुकमार्क","rowProfiles":"परिवार की प्रोफाइल","rowReports":"रिपोर्ट","rowOther":"अन्य रिकॉर्ड","rowDevice":"यह डिवाइस","rowAccount":"आपका अकाउंट","xOfY":"{b} में से {a}","removed":"{n} हटाए गए","cleared":"हटा दिया गया","none":"कोई नहीं","partial":"{b} में से {a} जवाब हटाए गए। बाकी अभी भी सेव हैं। फिर से कोशिश करें।","lost":"कनेक्शन टूट गया। हो सकता है कुछ डेटा हट चुका हो। ऐप खोलकर देख लें।","profTitle":"{name} की प्रोफाइल हटाएं?","profBody":"इससे प्रोफाइल आपकी सूची से हट जाएगी।","profGo":"हटाएं","folderTitle":"नया फोल्डर","folderHolder":"भौतिकी, रिवीजन…","folderGo":"बनाएं"},"as":{"item":"একাউণ্ট মচক","itemHint":"আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰায়।","title":"আপোনাৰ একাউণ্ট মচিবনে?","body":"ইয়াৰ ফলত আপোনাৰ একাউণ্ট, সংৰক্ষিত উত্তৰ, বুকমাৰ্ক, পৰিয়ালৰ প্ৰফাইল আৰু ৰিপ'ৰ্ট স্থায়ীভাৱে আঁতৰি যাব। ইয়াক ঘূৰাই আনিব নোৱাৰি।","why":"আপুনি কিয় গুচি গৈছে? (ঐচ্ছিক)","reasons":[["not_useful","মোৰ কামত নাহে"],["wrong_answers","উত্তৰ ভুল আছিল"],["privacy","গোপনীয়তাৰ কাৰণে"],["other","আন কিবা"]],"type":"নিশ্চিত কৰিবলৈ DELETE লিখক","confirm":"মচক","confirming":"আপুনিয়েই বুলি নিশ্চিত কৰক","confirmingBody":"আগবাঢ়িবলৈ আপোনাৰ Google একাউণ্ট বাছনি কৰক।","deleting":"আপোনাৰ একাউণ্ট মচা হৈছে…","done":"আপোনাৰ একাউণ্ট মচা হ'ল","doneBody":"তাত সংৰক্ষিত সকলো আঁতৰোৱা হৈছে।","failed":"একাউণ্ট মচিব পৰা নগ'ল","wrongAccount":"এইটো আন এটা Google একাউণ্ট। যিটো মচিছে সেইটো বাছনি কৰক।","faqQ":"মোৰ একাউণ্ট কেনেকৈ মচিম?","faqA":"ছেটিংছ খুলি একাউণ্ট মচক টিপক। Google একাউণ্টেৰে নিশ্চিত কৰিলে আপোনাৰ একাউণ্ট আৰু তাত সংৰক্ষিত সকলো স্থায়ীভাৱে আঁতৰি যাব।","typeHint":"প্ৰথমে ওপৰৰ বাকচত DELETE লিখক।","notDeleted":"আপোনাৰ একাউণ্ট ডিলিট হোৱা নাই","notDeletedBody":"Google উইণ্ড' শেষ হোৱাৰ আগতে বন্ধ হ'ল। পুনৰ চেষ্টা কৰক আৰু আপোনাৰ একাউণ্ট বাছনি কৰক।","clearTitle":"সংৰক্ষিত উত্তৰ মচিব নেকি?","clearBody":"এইবোৰ এই ডিভাইচ আৰু আপোনাৰ একাউণ্টৰ পৰা আঁতৰোৱা হ'ব। ইয়াক ঘূৰাই আনিব নোৱাৰি।","clearBodyDevice":"এইবোৰ এই ডিভাইচৰ পৰা আঁতৰোৱা হ'ব। ইয়াক ঘূৰাই আনিব নোৱাৰি।","clearGo":"মচক","clearing":"সংৰক্ষিত উত্তৰ মচি থকা হৈছে","clearDone":"সংৰক্ষিত উত্তৰ মচা হ'ল","clearFailed":"মচা শেষ কৰিব পৰা নগ'ল","nothing":"মচিবলৈ একো নাই","nothingBody":"ইয়াত কোনো সংৰক্ষিত উত্তৰ নাই।","checking":"কি কি সংৰক্ষিত আছে চোৱা হৈছে…","deletingTitle":"আপোনাৰ একাউণ্ট মচি থকা হৈছে","rowAnswers":"সংৰক্ষিত উত্তৰ","rowBookmarks":"বুকমাৰ্ক","rowProfiles":"পৰিয়ালৰ প্ৰফাইল","rowReports":"ৰিপ'ৰ্ট","rowOther":"অন্যান্য ৰেকৰ্ড","rowDevice":"এই ডিভাইচ","rowAccount":"আপোনাৰ একাউণ্ট","xOfY":"{b}ৰ ভিতৰত {a}","removed":"{n}টা মচা হ'ল","cleared":"মচা হ'ল","none":"নাই","partial":"{b}ৰ ভিতৰত {a}টা উত্তৰ মচা হ'ল। বাকীবোৰ এতিয়াও সংৰক্ষিত আছে। পুনৰ চেষ্টা কৰক।","lost":"সংযোগ বিচ্ছিন্ন হ'ল। কিছু তথ্য হয়তো ইতিমধ্যে মচা হৈছে। এপ খুলি চাওক।","profTitle":"{name}ৰ প্ৰফাইল আঁতৰাব নেকি?","profBody":"ই আপোনাৰ তালিকাৰ পৰা প্ৰফাইলটো আঁতৰাব।","profGo":"আঁতৰাওক","folderTitle":"নতুন ফ'ল্ডাৰ","folderHolder":"পদাৰ্থবিজ্ঞান, ৰিভিছন…","folderGo":"সৃষ্টি কৰক"}};
 function slD() { return SL_DEL[typeof currentLang === 'string' ? currentLang : 'en'] || SL_DEL.en; }
+function slFill(text, values) { return text.replace(/\{(\w+)\}/g, (_, k) => values[k]); }
+const slPause = ms => new Promise(go => setTimeout(go, ms));
+// The list, ring and strike-through line show only what has really finished.
+function slStepsHtml(rows) {
+  return `<ul class="sl-steps">${rows.map(r => `<li data-step="${r.id}" class="${r.state || ''}"><span class="sl-step-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sl-step-name">${slEsc(r.label)}</span><span class="sl-step-n">${slEsc(r.note || '')}</span></li>`).join('')}</ul>`;
+}
+function slStep(id, state, note) {
+  const row = document.querySelector(`#slDlg [data-step="${id}"]`);
+  if (!row) return;
+  row.className = state;
+  if (note !== undefined) row.querySelector('.sl-step-n').textContent = note;
+}
+function slRing(part) {
+  const value = Math.min(1, Math.max(0, part)), ring = document.getElementById('slRing'), text = document.getElementById('slRingN');
+  if (ring) ring.style.strokeDashoffset = String(176 * (1 - value));
+  if (text) text.textContent = Math.round(value * 100) + '%';
+}
+function slTick(title) {
+  const line = document.getElementById('slTick');
+  if (!line || !title) return;
+  const item = document.createElement('span');
+  item.textContent = String(title).replace(/\s+/g, ' ').slice(0, 90);
+  line.replaceChildren(item);
+}
 function slClearDevice() {
   const keep = ['studylens_theme', 'studylens_text', 'studylens_motion', 'studylens_install_bar'];
   try {
@@ -3229,21 +3282,73 @@ async function slDeleteRun(reason) {
     if (code === 'auth/popup-closed-by-user') return slDialog({ mark: 'bad', title: d.notDeleted, body: d.notDeletedBody, onBack: close, actions: [{ label: a.close, run: close }] });
     return failed(code === 'auth/user-mismatch' ? d.wrongAccount : code === 'auth/popup-blocked' ? a.errBlocked : a.errOther);
   }
-  slDialog({ mark: 'busy', title: d.deleting });
+  const rows = [
+    { id: 'answers', label: d.rowAnswers }, { id: 'bookmarks', label: d.rowBookmarks }, { id: 'profiles', label: d.rowProfiles },
+    { id: 'reports', label: d.rowReports }, { id: 'other', label: d.rowOther }, { id: 'account', label: d.rowAccount }, { id: 'device', label: d.rowDevice },
+  ];
+  slDialog({ mark: 'ring', title: d.deletingTitle, body: d.checking, html: slStepsHtml(rows) + '<p class="sl-tick-line" id="slTick"></p>' });
   slDlgState.onBack = null;
+  const totals = {}, counts = {};
+  let planned = 0, finished = 0, closed = false;
+  const onEvent = e => {
+    if (e.type === 'plan') {
+      Object.assign(totals, e.totals);
+      planned = Object.values(totals).reduce((n, v) => n + v, 0) + 2;
+      document.getElementById('slDlgBody')?.remove();
+      Object.keys(totals).forEach(id => { if (!totals[id]) slStep(id, 'done', d.none); });
+      if (!e.totals.other) document.querySelector('#slDlg [data-step="other"]')?.remove();
+    } else if (e.type === 'step') {
+      finished += e.add;
+      counts[e.id] = e.done;
+      slStep(e.id, e.done >= totals[e.id] ? 'done' : 'on', e.done >= totals[e.id] ? slFill(d.removed, { n: e.done }) : slFill(d.xOfY, { a: e.done, b: totals[e.id] }));
+      slRing(finished / planned);
+      if (e.title) slTick(e.title);
+    } else if (e.type === 'account') {
+      closed = true; finished += 1;
+      slStep('account', 'done', d.cleared);
+      slRing(finished / planned);
+    } else if (e.type === 'error') throw new Error(e.error);
+  };
   try {
     const user = slUser(), token = await user.getIdToken(true);
     const res = await fetch('/api/admin', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: 'deleteAccount', reason }),
+      body: JSON.stringify({ action: 'deleteAccount', reason, stream: true }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || a.errOther);
+    const reader = res.body.getReader(), text = new TextDecoder();
+    let held = '', ended = false;
+    while (!ended) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      held += text.decode(value, { stream: true });
+      const lines = held.split('\n');
+      held = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const e = JSON.parse(line);
+        if (e.type === 'done') ended = true; else onEvent(e);
+      }
+    }
+    if (!ended) throw new Error(d.lost);
     slClearDevice();
     await FB.signOutUser().catch(() => {});
-    slDialog({ mark: 'done', title: d.done, body: d.doneBody });
-    slDlgState.onBack = null;
-    setTimeout(() => location.replace('/'), 2200);
+    slStep('device', 'done', d.cleared);
+    slRing(1);
+    await slPause(520);
+    const home = () => location.replace('/');
+    const note = id => counts[id] ? slFill(d.removed, { n: counts[id] }) : d.none;
+    slDialog({
+      mark: 'done', title: d.done, body: d.doneBody, onBack: home, actions: [{ label: a.close, run: home }],
+      html: slStepsHtml([
+        ...rows.filter(r => !['other', 'account', 'device'].includes(r.id) || (r.id === 'other' && counts.other)).map(r => ({ ...r, note: note(r.id), state: 'done' })),
+        { id: 'account', label: d.rowAccount, note: d.cleared, state: 'done' },
+        { id: 'device', label: d.rowDevice, note: d.cleared, state: 'done' },
+      ]),
+    });
+    setTimeout(home, 9000);
   } catch (e) {
+    if (closed) { slClearDevice(); return location.replace('/'); }
     failed(navigator.onLine ? e.message : a.errNet);
   }
 }
@@ -3374,13 +3479,21 @@ try {
     }
     catch(e) { console.warn('[DB] saveEntry error:', e); }
   }
-  async function clearHistoryFromFirestore(uid, profileId) {
-    try {
-      const snap = await getDocs(_histCol(uid, profileId));
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-    } catch(e) { console.warn('[DB] clearHistory error:', e); }
+  // Clearing reports each part as it really finishes, and stops on the first failure.
+  const within = (work, ms = 20000) => Promise.race([work, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
+  async function listHistoryForClearing(uid, profileId) {
+    const snap = await within(getDocs(_histCol(uid, profileId)));
+    return snap.docs;
+  }
+  async function removeHistoryDocs(docs, onPart) {
+    const size = Math.min(100, Math.max(1, Math.ceil(docs.length / 24)));
+    for (let i = 0; i < docs.length; i += size) {
+      const part = docs.slice(i, i + size), batch = writeBatch(db);
+      part.forEach(d => batch.delete(d.ref));
+      await within(batch.commit());
+      onPart(part.map(d => ({ id: d.id, title: d.data().question || d.data().subject || '' })));
+      await new Promise(go => setTimeout(go, 60));
+    }
   }
   async function loadProfilesFromFirestore(uid) {
     try {
@@ -3423,7 +3536,7 @@ try {
   // Expose everything to the main script
   window._fb = {
     signInWithGoogle, signOutUser, reauthGoogle, onUserChanged, handleRedirectResult,
-    loadHistoryFromFirestore, saveHistoryEntryToFirestore, clearHistoryFromFirestore,
+    loadHistoryFromFirestore, saveHistoryEntryToFirestore, listHistoryForClearing, removeHistoryDocs,
     loadProfilesFromFirestore, saveProfilesToFirestore,
     saveBookmarksToFirestore, loadBookmarksFromFirestore,
   };
@@ -3455,7 +3568,8 @@ const FB = {
   onUserChanged:              (cb)  => window._fb ? window._fb.onUserChanged(cb)         : null,
   loadHistoryFromFirestore:   (uid, pid)       => window._fb ? window._fb.loadHistoryFromFirestore(uid, pid)        : Promise.resolve([]),
   saveHistoryEntryToFirestore:(uid, pid, e)    => window._fb ? window._fb.saveHistoryEntryToFirestore(uid, pid, e)  : Promise.resolve(),
-  clearHistoryFromFirestore:  (uid, pid)       => window._fb ? window._fb.clearHistoryFromFirestore(uid, pid)       : Promise.resolve(),
+  listHistoryForClearing:     (uid, pid)       => window._fb ? window._fb.listHistoryForClearing(uid, pid)          : Promise.reject(new Error('offline')),
+  removeHistoryDocs:          (docs, onPart)   => window._fb ? window._fb.removeHistoryDocs(docs, onPart)           : Promise.reject(new Error('offline')),
   loadProfilesFromFirestore:  (uid)            => window._fb ? window._fb.loadProfilesFromFirestore(uid)            : Promise.resolve([]),
   saveProfilesToFirestore:    (uid, p)         => window._fb ? window._fb.saveProfilesToFirestore(uid, p)           : Promise.resolve(),
   saveBookmarksToFirestore:   (uid, pid, ids, folders) => window._fb ? window._fb.saveBookmarksToFirestore(uid, pid, ids, folders) : Promise.resolve(),
@@ -3760,14 +3874,77 @@ function closeHistSheet() {
   if (si) si.value = '';
 }
 
-function clearAllHistory() {
-  if (!confirm('Clear all saved answers? This cannot be undone.')) return;
-  sessionHistory = [];
-  try { localStorage.removeItem(histKey()); } catch(_) {}
-  // Also clear Firestore if logged in
-  if (currentUser) FB.clearHistoryFromFirestore(currentUser.uid, activeProfileId);
+async function clearAllHistory() {
+  const d = slD(), a = slA(), close = () => slDialogClose(), account = !!currentUser;
+  if (account && !navigator.onLine) return slDialog({ mark: 'bad', title: d.clearFailed, body: a.errNet, onBack: close, actions: [{ label: a.close, run: close }] });
+  const fail = body => slDialog({ mark: 'bad', title: d.clearFailed, body, onBack: close, actions: [{ label: a.close, run: close }] });
+  let docs = [];
+  if (account) {
+    slDialog({ mark: 'busy', title: d.checking });
+    try { docs = await FB.listHistoryForClearing(currentUser.uid, activeProfileId); }
+    catch (_) { return fail(a.errNet); }
+  }
+  const ids = new Set([...sessionHistory.map(e => String(e.id)), ...docs.map(x => x.id)]);
+  if (!ids.size) return slDialog({ mark: 'info', title: d.nothing, body: d.nothingBody, onBack: close, actions: [{ label: a.close, run: close }] });
+  const marked = [...bookmarkedIds].filter(id => ids.has(String(id))).length;
+  const preview = slStepsHtml([
+    { id: 'answers', label: d.rowAnswers, note: String(ids.size) },
+    { id: 'bookmarks', label: d.rowBookmarks, note: marked ? String(marked) : d.none },
+  ]);
+  slDialog({
+    mark: 'bad', title: d.clearTitle, body: account ? d.clearBody : d.clearBodyDevice, onBack: close, html: preview,
+    actions: [{ label: a.cancel, run: close }, { label: d.clearGo, style: 'danger', run: () => slClearRun(docs, ids, marked) }],
+  });
+}
+async function slClearRun(docs, ids, marked) {
+  const d = slD(), a = slA(), close = () => slDialogClose();
+  const rows = [{ id: 'answers', label: d.rowAnswers }, { id: 'bookmarks', label: d.rowBookmarks }, { id: 'device', label: d.rowDevice }];
+  slDialog({ mark: 'ring', title: d.clearing, html: slStepsHtml(rows) + '<p class="sl-tick-line" id="slTick"></p>' });
+  slDlgState.onBack = null;
+  const total = ids.size, gone = new Set(ids);
+  let done = 0, failure = false;
+  if (docs.length) {
+    gone.clear();
+    sessionHistory.forEach(e => { if (!docs.some(x => x.id === String(e.id))) gone.add(String(e.id)); });
+    slStep('answers', 'on', slFill(d.xOfY, { a: 0, b: docs.length }));
+    try {
+      await FB.removeHistoryDocs(docs, part => {
+        part.forEach(x => gone.add(x.id));
+        done += part.length;
+        slStep('answers', 'on', slFill(d.xOfY, { a: done, b: docs.length }));
+        slRing(done / (docs.length + 2));
+        slTick(part[part.length - 1].title);
+      });
+    } catch (_) { failure = true; }
+  }
+  // Only what was really removed from the account leaves this device.
+  sessionHistory = sessionHistory.filter(e => !gone.has(String(e.id)));
+  [...bookmarkedIds].forEach(id => { if (gone.has(String(id))) bookmarkedIds.delete(id); });
+  Object.values(bookmarkFolders).forEach(f => [...f.ids].forEach(id => { if (gone.has(String(id))) f.ids.delete(id); }));
+  const bookmarks = marked - [...bookmarkedIds].filter(id => ids.has(String(id))).length;
+  if (bookmarks) persistBookmarks();
+  try { sessionHistory.length ? persistHistory() : localStorage.removeItem(histKey()); } catch (_) {}
   updateHistPill();
-  buildHistList();  // refresh (shows empty state)
+  buildHistList();
+  if (typeof updateHistTabCounts === 'function') updateHistTabCounts();
+  if (failure) {
+    return slDialog({ mark: 'bad', title: d.clearFailed, body: slFill(d.partial, { a: done, b: docs.length }), onBack: close, actions: [{ label: a.close, run: close }] });
+  }
+  const removed = slFill(d.removed, { n: gone.size });
+  slStep('answers', 'done', removed); slRing((docs.length + 1) / (docs.length + 2));
+  await slPause(260);
+  slStep('bookmarks', 'done', bookmarks ? slFill(d.removed, { n: bookmarks }) : d.none); slRing((docs.length + 1.5) / (docs.length + 2));
+  await slPause(260);
+  slStep('device', 'done', d.cleared); slRing(1);
+  await slPause(420);
+  slDialog({
+    mark: 'done', title: d.clearDone, onBack: close, actions: [{ label: a.close, run: close }],
+    html: slStepsHtml([
+      { id: 'answers', label: d.rowAnswers, note: removed, state: 'done' },
+      { id: 'bookmarks', label: d.rowBookmarks, note: bookmarks ? slFill(d.removed, { n: bookmarks }) : d.none, state: 'done' },
+      { id: 'device', label: d.rowDevice, note: d.cleared, state: 'done' },
+    ]),
+  });
 }
 
 function buildHistList() {
@@ -6911,7 +7088,18 @@ function closeFolderPicker() {
 }
 
 async function createNewFolder() {
-  const name = prompt('Folder name (e.g. "Physics", "Revision"):');
+  const d = slD();
+  const name = await new Promise(answer => {
+    const finish = value => { slDialogClose(); answer(value); };
+    slDialog({
+      mark: 'none', title: d.folderTitle, onBack: () => finish(''),
+      html: `<input id="slFolderName" class="sl-report-note" maxlength="40" placeholder="${slEsc(d.folderHolder)}" autocomplete="off"/>`,
+      actions: [{ label: slA().cancel, run: () => finish('') }, { label: d.folderGo, run: () => finish(document.getElementById('slFolderName').value) }],
+    });
+    const box = document.getElementById('slFolderName');
+    box.focus();
+    box.onkeydown = e => { if (e.key === 'Enter') finish(box.value); };
+  });
   if (!name || !name.trim()) return null;
   const emojis = ['📂','🔵','🟣','🟠','🟢','🔴','⭐','🏆','💡','🎯'];
   const emoji   = emojis[Object.keys(bookmarkFolders).length % emojis.length];
@@ -7438,7 +7626,13 @@ function deleteProfile(e, id) {
   e.stopPropagation();
   const p = familyProfiles.find(x => x.id === id);
   if (!p) return;
-  if (!confirm('Remove ' + p.name + "'s profile?")) return;
+  const d = slD(), close = () => slDialogClose();
+  slDialog({
+    mark: 'bad', title: slFill(d.profTitle, { name: p.name }), body: d.profBody, onBack: close,
+    actions: [{ label: slA().cancel, run: close }, { label: d.profGo, style: 'danger', run: () => { close(); removeProfile(p, id); } }],
+  });
+}
+function removeProfile(p, id) {
   familyProfiles = familyProfiles.filter(x => x.id !== id);
 
   // If the deleted profile was active, switch back to shared (no-profile) data

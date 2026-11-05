@@ -328,24 +328,33 @@ async function listDeletions() {
 
 // A student removes their own account. The token must come from a sign-in in the
 // last few minutes, so an unlocked phone is not enough.
-async function deleteOwnAccount(sa, user, idToken, reason) {
+function signedInJustNow(idToken) {
   const claims = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url'));
-  if (Math.floor(Date.now() / 1000) - (claims.auth_time || 0) > FRESH_SIGN_IN_SECONDS) {
-    return { status: 403, error: 'Please confirm with Google again.' };
-  }
-  const { records } = await deleteStudent(sa, user.localId);
+  return Math.floor(Date.now() / 1000) - (claims.auth_time || 0) <= FRESH_SIGN_IN_SECONDS;
+}
+async function deleteOwnAccount(sa, user, idToken, reason, send) {
+  if (!signedInJustNow(idToken)) return { status: 403, error: 'Please confirm with Google again.' };
+  const { records } = await deleteStudent(sa, user.localId, send);
   const token = await getFirebaseToken(sa);
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${sa.project_id}/accounts:delete`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ localId: user.localId }),
   });
   if (!r.ok) throw new Error('Your data was removed, but the account could not be closed. Please try again.');
+  send?.({ type: 'account' });
   await recordDeletion('student', records, Number(user.createdAt) || 0, reason);
   return { ok: true };
 }
 
 // ── Delete everything one student has stored ─────────────────────
-async function deleteStudent(sa, uid) {
+// What a stored record is, for showing a student what is being removed
+function recordKind(path) {
+  if (/\/history\/[^/]+$/.test(path)) return 'answers';
+  if (/\/bookmarks\/[^/]+$/.test(path)) return 'bookmarks';
+  if (/\/profiles\/[^/]+$/.test(path)) return 'profiles';
+  return 'other';
+}
+async function deleteStudent(sa, uid, send) {
   if (!/^[A-Za-z0-9_-]{6,128}$/.test(String(uid))) throw new Error('Invalid student.');
   const token = await getFirebaseToken(sa);
   const root = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
@@ -355,23 +364,54 @@ async function deleteStudent(sa, uid) {
     const r = await fetch(`${root}:batchWrite`, { method: 'POST', headers, body: JSON.stringify({ writes: names.map(name => ({ delete: name })) }) });
     if (!r.ok) throw new Error(`Delete failed (${r.status})`);
   };
-  let records = 0;
-  for (let round = 0; round < 40; round++) {
+  async function reportsOf() {
+    const reports = await fetch(`${root}:runQuery`, { method: 'POST', headers, body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'reports' }], select: { fields: [{ fieldPath: '__name__' }] }, limit: 400,
+      where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } },
+    } }) });
+    return reports.ok ? (await reports.json()).filter(row => row.document).map(row => row.document.name) : [];
+  }
+  const stored = async (limit, fields) => {
     const r = await fetch(`${root}/users/${uid}:runQuery`, { method: 'POST', headers, body: JSON.stringify({ structuredQuery: {
-      from: [{ allDescendants: true }], select: { fields: [{ fieldPath: '__name__' }] }, limit: 400,
+      from: [{ allDescendants: true }], select: { fields: fields.map(fieldPath => ({ fieldPath })) }, limit,
     } }) });
     if (!r.ok) throw new Error(`Could not read student data (${r.status})`);
-    const names = (await r.json()).filter(row => row.document).map(row => row.document.name);
+    return (await r.json()).filter(row => row.document).map(row => row.document);
+  };
+  let records = 0;
+  if (send) {
+    // Goes through the records in groups and reports each group once it is really gone.
+    const docs = (await stored(5000, ['__name__', 'question', 'subject', 'ids'])).map(doc => ({
+      name: doc.name, kind: recordKind(doc.name),
+      title: doc.fields?.question?.stringValue || doc.fields?.subject?.stringValue || '',
+      items: recordKind(doc.name) === 'bookmarks' ? (doc.fields?.ids?.arrayValue?.values || []).length : 1,
+    }));
+    const left = await reportsOf();
+    const totals = { answers: 0, bookmarks: 0, profiles: 0, other: 0, reports: left.length };
+    docs.forEach(doc => { totals[doc.kind] += doc.items; });
+    send({ type: 'plan', totals });
+    for (const kind of ['answers', 'bookmarks', 'other', 'profiles']) {
+      const group = docs.filter(doc => doc.kind === kind);
+      const size = Math.min(100, Math.max(1, Math.ceil(group.length / 24)));
+      let done = 0;
+      for (let i = 0; i < group.length; i += size) {
+        const part = group.slice(i, i + size), add = part.reduce((n, doc) => n + doc.items, 0);
+        await commit(part.map(doc => doc.name));
+        records += part.length;
+        done += add;
+        if (add) send({ type: 'step', id: kind, done, add, title: kind === 'answers' ? part[part.length - 1].title : '' });
+      }
+    }
+  }
+  for (let round = 0; round < 40; round++) {
+    const names = (await stored(400, ['__name__'])).map(doc => doc.name);
     if (!names.length) break;
     await commit(names);
     records += names.length;
   }
-  const reports = await fetch(`${root}:runQuery`, { method: 'POST', headers, body: JSON.stringify({ structuredQuery: {
-    from: [{ collectionId: 'reports' }], select: { fields: [{ fieldPath: '__name__' }] }, limit: 400,
-    where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } },
-  } }) });
-  const reportNames = reports.ok ? (await reports.json()).filter(row => row.document).map(row => row.document.name) : [];
+  const reportNames = await reportsOf();
   await commit(reportNames);
+  if (send && reportNames.length) send({ type: 'step', id: 'reports', done: reportNames.length, add: reportNames.length });
   scanCache = null;
   return { records, reports: reportNames.length };
 }
@@ -647,8 +687,24 @@ export default async function handler(req, res) {
       const user = await signedInUser(req);
       if (!user) return res.status(401).json({ error: 'Please sign in again.' });
       const idToken = req.headers.authorization.replace(/^Bearer\s+/i, '');
-      const out = await deleteOwnAccount(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'), user, idToken, req.body.reason);
-      return res.status(out.status || 200).json(out);
+      const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+      if (req.body.stream !== true || !signedInJustNow(idToken)) {
+        const out = await deleteOwnAccount(sa, user, idToken, req.body.reason);
+        return res.status(out.status || 200).json(out);
+      }
+      // One line of JSON for each finished part, so the app can show real progress
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+      const send = event => res.write(JSON.stringify(event) + '\n');
+      try {
+        await deleteOwnAccount(sa, user, idToken, req.body.reason, send);
+        send({ type: 'done' });
+      } catch (e) {
+        send({ type: 'error', error: e.message });
+      }
+      return res.end();
     }
 
     if (req.body?.action === 'report') {
