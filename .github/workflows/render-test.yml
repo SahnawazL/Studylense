@@ -12,11 +12,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - run: |
-          npm i --no-save katex@0.16.9 playwright@1.48 smiles-drawer@2.1.7 > /dev/null
+          npm i --no-save katex@0.16.9 playwright@1.48 smiles-drawer@2.1.7 html-to-image@1.11.11 > /dev/null
           npx playwright install --with-deps chromium > /dev/null
           mkdir -p shots
           node tests/render-test.mjs || true
           node tests/mol-try.mjs || true
+          node tests/share-test.mjs || true
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f shots && git commit -q -m "Render test screenshots" && git push -q origin HEAD:render-test
