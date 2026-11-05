@@ -164,27 +164,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 
 /* Loading spinner inside gate */
-.login-loading {
-  display: none; flex-direction: column; align-items: center;
-  gap: 0.8rem; margin-top: 1.2rem;
-}
-.login-loading.show { display: flex; }
-.login-spinner {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 2.5px solid var(--border);
-  border-top-color: var(--accent);
-  animation: spin 0.85s linear infinite;
-}
 @keyframes spin { to { transform: rotate(360deg); } }
-.login-loading-text { font-size: 0.78rem; color: var(--muted); }
 
-/* Error message inside gate */
-.login-error {
-  display: none; margin-top: 1rem; padding: 0.6rem 0.9rem;
-  background: rgba(247,79,79,0.1); border: 1px solid rgba(247,79,79,0.25);
-  border-radius: 10px; font-size: 0.78rem; color: var(--rose); line-height: 1.4;
-}
-.login-error.show { display: block; }
 /* ── END LOGIN GATE ───────────────────────────────────────── */
 
 /* LANG BAR */
@@ -1979,12 +1960,65 @@ body.sl-lock { overflow: hidden; }
 .smart-send-btn .ic, .followup-send .ic { width: 1.25em; height: 1.25em; vertical-align: -.25em; }
 .chk .ic { width: 1em; height: 1em; stroke-width: 3; }
 .sl-licence + .sl-muted { margin-top: .8rem; }
+
+/* ── Sign-in and sign-out pop-ups ─────────────────────────────── */
+.login-gate { transition: opacity .38s ease, visibility .38s; }
+.login-check {
+  position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem;
+  background: var(--bg); transition: opacity .32s ease, visibility .32s;
+}
+.login-check.done { opacity: 0; visibility: hidden; }
+.login-check img { width: 76px; height: 76px; border-radius: 20px; }
+.sl-spin { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.sl-dlg-wrap {
+  position: fixed; inset: 0; z-index: 2300; display: flex; align-items: center; justify-content: center; padding: 1.25rem;
+  background: rgba(5,8,16,.58); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+  opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s;
+}
+.sl-dlg-wrap.open { opacity: 1; visibility: visible; }
+.sl-dlg {
+  width: 100%; max-width: 340px; padding: 1.5rem 1.25rem 1.2rem; text-align: center; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 24px 64px var(--shadow);
+  transform: translateY(10px) scale(.96); transition: transform .26s cubic-bezier(.2,.9,.3,1.15);
+}
+.sl-dlg-wrap.open .sl-dlg { transform: none; }
+.sl-dlg-mark { position: relative; width: 64px; height: 64px; margin: 0 auto .9rem; display: grid; place-items: center; }
+.sl-dlg-mark .sl-spin { width: 44px; height: 44px; border-width: 3px; }
+.sl-dlg-av { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; color: #fff; font: 800 1.5rem var(--font-head); background: linear-gradient(135deg, var(--accent), #7b5eff); }
+.sl-dlg-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sl-dlg-badge { position: absolute; right: -4px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--danger); border: 2.5px solid var(--surface); }
+.sl-dlg-badge svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.sl-dlg-tick { width: 60px; height: 60px; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sl-dlg-tick circle { stroke: var(--green); stroke-width: 2.5; stroke-dasharray: 151; stroke-dashoffset: 151; transform: rotate(-90deg); transform-origin: center; animation: slDraw .45s ease forwards; }
+.sl-dlg-tick path { stroke: var(--green); stroke-width: 3.5; stroke-dasharray: 34; stroke-dashoffset: 34; animation: slDraw .26s .36s ease forwards; }
+.sl-dlg-mark.bad { color: var(--danger); border-radius: 50%; background: rgba(247,79,79,.12); }
+.sl-dlg-mark.bad svg, .sl-dlg-mark.info svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sl-dlg-mark.info { color: var(--accent); border-radius: 50%; background: rgba(79,142,247,.13); }
+@keyframes slDraw { to { stroke-dashoffset: 0; } }
+.sl-dlg h3 { margin: 0; font: 700 1.14rem/1.3 var(--font-head); color: var(--text); overflow-wrap: anywhere; }
+.sl-dlg p { margin: .4rem 0 0; font-size: .87rem; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.sl-dlg-who { font-size: .8rem !important; }
+.sl-dlg-acts { display: flex; gap: .55rem; margin-top: 1.15rem; }
+.sl-dlg-acts:empty { display: none; }
+.sl-dlg-acts button {
+  flex: 1; min-height: 46px; padding: .4rem .7rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+  font: 700 .9rem var(--font-body); cursor: pointer; transition: transform .12s, filter .12s;
+}
+.sl-dlg-acts button:active { transform: scale(.97); }
+.sl-dlg-acts button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sl-dlg-acts button.primary { border-color: transparent; background: var(--accent); color: #fff; }
+.sl-dlg-acts button.danger { border-color: transparent; background: var(--danger); color: #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-dlg, .sl-dlg-wrap, .login-check, .login-gate { transition-duration: .01s; }
+  .sl-dlg-tick circle, .sl-dlg-tick path { animation-duration: .01s; animation-delay: 0s; }
+}
 </style>
 <body>
 <script src="/icons.js"></script>
 
 <!-- ── LOGIN GATE (mandatory — hides until authenticated) ── -->
 <div class="login-gate" id="loginGate">
+  <div class="login-check" id="loginCheck"><img src="/studylens-logo.svg" alt="StudyLens AI" width="76" height="76"/><div class="sl-spin"></div></div>
   <div class="login-gate-blob login-gate-blob-1"></div>
   <div class="login-gate-blob login-gate-blob-2"></div>
 
@@ -2019,13 +2053,6 @@ body.sl-lock { overflow: hidden; }
     </button>
 
     <!-- Loading state -->
-    <div class="login-loading" id="loginLoading">
-      <div class="login-spinner"></div>
-      <span class="login-loading-text" id="loginLoadingText">Signing you in…</span>
-    </div>
-
-    <!-- Error -->
-    <div class="login-error" id="loginError"></div>
 
     <p class="login-footer">By continuing, you agree to our <a href="#terms" data-sl="terms">Terms of Use</a> and <a href="#privacy" data-sl="privacy">Privacy Policy</a>.</p>
   </div>
@@ -2039,7 +2066,7 @@ body.sl-lock { overflow: hidden; }
   </div>
   <div class="lang-bar-right">
     <button class="auth-btn" id="authBtn" onclick="handleAuthClick()">
-      <img class="auth-avatar" id="authAvatar" src="" alt=""/>
+      <img class="auth-avatar" id="authAvatar" src="" alt="" referrerpolicy="no-referrer"/>
       <span class="auth-name" id="authName">Sign In</span>
     </button>
     <div class="lang-pill" id="langPill">
@@ -2432,6 +2459,9 @@ body.sl-lock { overflow: hidden; }
   <span id="voiceToastText">Listening…</span>
 </div>
 
+<!-- Sign-in and sign-out pop-up -->
+<div class="sl-dlg-wrap" id="slDlg"><div class="sl-dlg" role="alertdialog" aria-modal="true" aria-labelledby="slDlgTitle" aria-describedby="slDlgBody" tabindex="-1"></div></div>
+
 <!-- Side menu and full pages -->
 <div class="sl-scrim" id="slScrim" onclick="slClose()"></div>
 <aside class="sl-drawer" id="slDrawer" aria-label="Menu"></aside>
@@ -2695,6 +2725,145 @@ window.addEventListener('popstate', e => slPaint(e.state && e.state.sl || null))
 if (window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => {
   if (slGet('studylens_theme', 'dark') === 'system') slApplyTheme('system');
 });
+// ── Sign-in and sign-out pop-ups ─────────────────────────────────
+var SL_AUTH = {"en":{"opening":"Opening Google sign-in…","openingBody":"Choose your account in the Google window.","finishing":"Signing you in…","finishingBody":"This takes just a moment.","welcome":"Welcome, {name}","welcomeBody":"You're signed in.","signOutTitle":"Sign out of StudyLens?","signOutBody":"Your saved answers stay safe in your account. Sign in again any time to see them.","cancel":"Cancel","signingOut":"Signing out…","signedOut":"You're signed out","signedOutBody":"See you again soon.","errTitle":"Couldn't sign in","errOut":"Couldn't sign out","errNet":"Check your internet connection and try again.","errBlocked":"Your browser blocked the Google window. Allow pop-ups for this site, then try again.","errBusy":"Too many attempts. Please wait a minute and try again.","errOff":"Sign-in isn't available right now. Please refresh the page and try again.","errOther":"Something went wrong. Please try again.","tryAgain":"Try again","close":"Close","inAppTitle":"Open in your browser","inAppBody":"Google sign-in doesn't work inside this app's built-in browser. Copy the link and open it in Chrome or Safari.","copyLink":"Copy link","tryAnyway":"Try anyway","copied":"Link copied. Paste it in your browser."},"bn":{"opening":"Google সাইন-ইন খোলা হচ্ছে…","openingBody":"Google উইন্ডোতে আপনার অ্যাকাউন্ট বেছে নিন।","finishing":"সাইন ইন করা হচ্ছে…","finishingBody":"এক মুহূর্ত অপেক্ষা করুন।","welcome":"স্বাগতম, {name}","welcomeBody":"আপনি সাইন ইন করেছেন।","signOutTitle":"StudyLens থেকে সাইন আউট করবেন?","signOutBody":"আপনার সংরক্ষিত উত্তর অ্যাকাউন্টে নিরাপদ থাকবে। আবার সাইন ইন করলেই সেগুলি দেখতে পাবেন।","cancel":"বাতিল","signingOut":"সাইন আউট করা হচ্ছে…","signedOut":"আপনি সাইন আউট করেছেন","signedOutBody":"আবার দেখা হবে।","errTitle":"সাইন ইন করা যায়নি","errOut":"সাইন আউট করা যায়নি","errNet":"ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।","errBlocked":"ব্রাউজার Google উইন্ডোটি আটকে দিয়েছে। এই সাইটের জন্য পপ-আপ চালু করে আবার চেষ্টা করুন।","errBusy":"অনেকবার চেষ্টা করা হয়েছে। এক মিনিট অপেক্ষা করে আবার চেষ্টা করুন।","errOff":"এখন সাইন ইন করা যাচ্ছে না। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।","errOther":"কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।","tryAgain":"আবার চেষ্টা করুন","close":"বন্ধ করুন","inAppTitle":"ব্রাউজারে খুলুন","inAppBody":"এই অ্যাপের ভেতরের ব্রাউজারে Google সাইন-ইন কাজ করে না। লিংক কপি করে Chrome বা Safari-তে খুলুন।","copyLink":"লিংক কপি করুন","tryAnyway":"তবুও চেষ্টা করুন","copied":"লিংক কপি হয়েছে। ব্রাউজারে পেস্ট করুন।"},"hi":{"opening":"Google साइन-इन खुल रहा है…","openingBody":"Google विंडो में अपना खाता चुनें।","finishing":"साइन इन हो रहा है…","finishingBody":"बस एक पल।","welcome":"स्वागत है, {name}","welcomeBody":"आप साइन इन हो गए हैं।","signOutTitle":"StudyLens से साइन आउट करें?","signOutBody":"आपके सहेजे गए उत्तर आपके खाते में सुरक्षित रहेंगे। दोबारा साइन इन करके उन्हें कभी भी देखें।","cancel":"रद्द करें","signingOut":"साइन आउट हो रहा है…","signedOut":"आप साइन आउट हो गए हैं","signedOutBody":"फिर मिलेंगे।","errTitle":"साइन इन नहीं हो सका","errOut":"साइन आउट नहीं हो सका","errNet":"अपना इंटरनेट कनेक्शन जाँचें और फिर से कोशिश करें।","errBlocked":"ब्राउज़र ने Google विंडो रोक दी। इस साइट के लिए पॉप-अप चालू करें और फिर से कोशिश करें।","errBusy":"बहुत अधिक प्रयास हो गए। एक मिनट रुककर फिर से कोशिश करें।","errOff":"अभी साइन इन उपलब्ध नहीं है। पेज रीफ़्रेश करके फिर से कोशिश करें।","errOther":"कुछ गड़बड़ हो गई। फिर से कोशिश करें।","tryAgain":"फिर से कोशिश करें","close":"बंद करें","inAppTitle":"अपने ब्राउज़र में खोलें","inAppBody":"इस ऐप के अंदर के ब्राउज़र में Google साइन-इन काम नहीं करता। लिंक कॉपी करके Chrome या Safari में खोलें।","copyLink":"लिंक कॉपी करें","tryAnyway":"फिर भी कोशिश करें","copied":"लिंक कॉपी हो गया। इसे ब्राउज़र में पेस्ट करें।"},"as":{"opening":"Google ছাইন-ইন খোল হৈছে…","openingBody":"Google ৱিণ্ড'ত আপোনাৰ একাউণ্ট বাছনি কৰক।","finishing":"ছাইন ইন কৰা হৈছে…","finishingBody":"অলপ সময় ৰওক।","welcome":"স্বাগতম, {name}","welcomeBody":"আপুনি ছাইন ইন কৰিছে।","signOutTitle":"StudyLensৰ পৰা ছাইন আউট কৰিবনে?","signOutBody":"আপোনাৰ সংৰক্ষিত উত্তৰ একাউণ্টত সুৰক্ষিত থাকিব। পুনৰ ছাইন ইন কৰিলেই সেইবোৰ চাব পাৰিব।","cancel":"বাতিল কৰক","signingOut":"ছাইন আউট কৰা হৈছে…","signedOut":"আপুনি ছাইন আউট কৰিছে","signedOutBody":"আকৌ লগ পাম।","errTitle":"ছাইন ইন কৰিব পৰা নগ'ল","errOut":"ছাইন আউট কৰিব পৰা নগ'ল","errNet":"ইণ্টাৰনেট সংযোগ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।","errBlocked":"ব্ৰাউজাৰে Google ৱিণ্ড'টো বন্ধ কৰি দিলে। এই ছাইটৰ বাবে পপ-আপ অন কৰি পুনৰ চেষ্টা কৰক।","errBusy":"বহুবাৰ চেষ্টা কৰা হৈছে। এক মিনিট ৰৈ পুনৰ চেষ্টা কৰক।","errOff":"এতিয়া ছাইন ইন উপলব্ধ নহয়। পৃষ্ঠাটো ৰিফ্ৰেছ কৰি পুনৰ চেষ্টা কৰক।","errOther":"কিবা সমস্যা হ'ল। পুনৰ চেষ্টা কৰক।","tryAgain":"পুনৰ চেষ্টা কৰক","close":"বন্ধ কৰক","inAppTitle":"ব্ৰাউজাৰত খোলক","inAppBody":"এই এপৰ ভিতৰৰ ব্ৰাউজাৰত Google ছাইন-ইন নচলে। লিংক কপি কৰি Chrome বা Safariত খোলক।","copyLink":"লিংক কপি কৰক","tryAnyway":"তথাপি চেষ্টা কৰক","copied":"লিংক কপি হ'ল। ব্ৰাউজাৰত পেষ্ট কৰক।"}};
+var slDlgState = { open: false, pushed: false, onBack: null, timer: 0, restore: null };
+function slA() { return SL_AUTH[typeof currentLang === 'string' ? currentLang : 'en'] || SL_AUTH.en; }
+function slMark(kind, user) {
+  if (kind === 'busy') return '<div class="sl-dlg-mark"><div class="sl-spin"></div></div>';
+  if (kind === 'done') return '<div class="sl-dlg-mark"><svg class="sl-dlg-tick" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="24"/><path d="m19 31 8 8 15-17"/></svg></div>';
+  if (kind === 'bad') return '<div class="sl-dlg-mark bad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></div>';
+  if (kind === 'info') return '<div class="sl-dlg-mark info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></svg></div>';
+  const name = (user && (user.displayName || user.email)) || 'S';
+  const photo = user && user.photoURL ? `<img src="${slEsc(user.photoURL)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"/>` : '';
+  const badge = kind === 'leave' ? '<span class="sl-dlg-badge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>' : '';
+  return `<div class="sl-dlg-mark"><div class="sl-dlg-av" style="position:relative"><span style="position:absolute">${slEsc(name.charAt(0).toUpperCase())}</span>${photo ? `<span style="position:absolute;inset:0">${photo}</span>` : ''}</div>${badge}</div>`;
+}
+function slDialog(o) {
+  const wrap = document.getElementById('slDlg'), st = slDlgState;
+  clearTimeout(st.timer);
+  if (!st.open) {
+    st.restore = document.activeElement;
+    st.open = true;
+    if (!st.pushed) { history.pushState({ sl: slLayer, dlg: 1 }, '', location.href); st.pushed = true; }
+  }
+  st.onBack = o.onBack || null;
+  wrap.querySelector('.sl-dlg').innerHTML = slMark(o.mark, o.user) +
+    `<h3 id="slDlgTitle">${slEsc(o.title)}</h3>` +
+    (o.body ? `<p id="slDlgBody">${slEsc(o.body)}</p>` : '') +
+    (o.who ? `<p class="sl-dlg-who">${slEsc(o.who)}</p>` : '') +
+    `<div class="sl-dlg-acts">${(o.actions || []).map((a, i) => `<button type="button" class="${a.style || ''}" data-i="${i}">${slEsc(a.label)}</button>`).join('')}</div>`;
+  wrap.querySelectorAll('.sl-dlg-acts button').forEach(b => { b.onclick = () => o.actions[+b.dataset.i].run(); });
+  wrap.classList.add('open');
+  (wrap.querySelector('.sl-dlg-acts button') || wrap.querySelector('.sl-dlg')).focus({ preventScroll: true });
+  if (o.auto) st.timer = setTimeout(slDialogClose, o.auto);
+}
+function slDialogClose() {
+  const st = slDlgState, wrap = document.getElementById('slDlg');
+  if (!st.open) return;
+  clearTimeout(st.timer);
+  st.open = false; st.onBack = null;
+  wrap.classList.remove('open');
+  if (st.pushed) { st.pushed = false; history.back(); }
+  if (st.restore && st.restore.isConnected && st.restore.offsetParent) st.restore.focus({ preventScroll: true });
+}
+window.addEventListener('popstate', () => {
+  const st = slDlgState;
+  if (!st.open) return;
+  st.pushed = false;
+  if (st.onBack) st.onBack();                   // Back works like the dialog's own dismiss
+});
+document.addEventListener('keydown', e => {
+  const st = slDlgState;
+  if (!st.open) return;
+  if (e.key === 'Escape' && st.onBack) { e.stopPropagation(); st.onBack(); }
+  if (e.key === 'Tab') {
+    const list = [...document.querySelectorAll('#slDlg button')];
+    if (!list.length) return e.preventDefault();
+    const at = list.indexOf(document.activeElement), last = list.length - 1;
+    if (e.shiftKey && at <= 0) { e.preventDefault(); list[last].focus(); }
+    else if (!e.shiftKey && at === last) { e.preventDefault(); list[0].focus(); }
+  }
+}, true);
+
+// Sign in
+var slSignInRun = 0;
+function slSignInReset() { const b = document.getElementById('googleSignInBtn'); if (b) b.disabled = false; }
+function slSignInError(a, body) {
+  slSignInReset();
+  const close = () => slDialogClose();
+  slDialog({ mark: 'bad', title: a.errTitle, body, onBack: close, actions: [{ label: a.close, run: close }, { label: a.tryAgain, style: 'primary', run: () => gateSignIn(true) }] });
+}
+async function gateSignIn(force) {
+  const a = slA(), btn = document.getElementById('googleSignInBtn');
+  if (!window._fb) return slSignInError(a, a.errOff);
+  if (force !== true && /FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|; wv\)/i.test(navigator.userAgent)) {
+    const close = () => slDialogClose();
+    return slDialog({ mark: 'info', title: a.inAppTitle, body: a.inAppBody, onBack: close, actions: [
+      { label: a.tryAnyway, run: () => gateSignIn(true) },
+      { label: a.copyLink, style: 'primary', run: async () => {
+        try { await navigator.clipboard.writeText(location.origin); showProfileToast(a.copied); } catch (_) {}
+        close();
+      } }
+    ] });
+  }
+  const run = ++slSignInRun;
+  btn.disabled = true;
+  const stop = () => { slSignInRun++; slSignInReset(); slDialogClose(); };
+  const waiting = (title, body) => slDialog({ mark: 'busy', title, body, onBack: stop, actions: [{ label: a.cancel, run: stop }] });
+  waiting(a.opening, a.openingBody);
+  // the Google window has closed and the app has focus again
+  window.addEventListener('focus', () => { if (run === slSignInRun && slDlgState.open) waiting(a.finishing, a.finishingBody); }, { once: true });
+  try {
+    const result = await FB.signInWithGoogle();
+    if (run !== slSignInRun) return;
+    slSignInRun++;
+    slSignInReset();
+    const user = (result && result.user) || slUser();
+    const first = ((user && user.displayName) || '').split(' ')[0];
+    slDialog({ mark: 'done', title: first ? a.welcome.replace('{name}', first) : a.welcomeBody, body: first ? a.welcomeBody : '', auto: 1300, onBack: slDialogClose });
+  } catch (e) {
+    if (run !== slSignInRun) return;
+    slSignInRun++;
+    const code = (e && e.code) || '';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') { slSignInReset(); return slDialogClose(); }
+    console.warn('[Auth] sign-in failed:', code || e);
+    const body = code === 'auth/popup-blocked' ? a.errBlocked
+      : code === 'auth/network-request-failed' ? a.errNet
+      : code === 'auth/too-many-requests' ? a.errBusy
+      : a.errOther;
+    slSignInError(a, body);
+  }
+}
+
+// Sign out
+async function slSignOut() {
+  const a = slA(), user = slUser();
+  slDialog({ mark: 'busy', title: a.signingOut });
+  slDlgState.onBack = null;
+  try {
+    await FB.signOutUser();
+    slDialog({ mark: 'done', title: a.signedOut, body: a.signedOutBody, auto: 1200, onBack: slDialogClose });
+  } catch (e) {
+    console.warn('[Auth] sign-out failed:', e && e.code || e);
+    const close = () => slDialogClose();
+    slDialog({ mark: 'bad', title: a.errOut, body: a.errNet, onBack: close, actions: [{ label: a.close, run: close }, { label: a.tryAgain, style: 'primary', run: slSignOut }] });
+  }
+}
+function handleAuthClick() {
+  const user = slUser();
+  if (!user) return showLoginGate();     // fallback: the gate normally covers this button
+  const a = slA(), close = () => slDialogClose();
+  slDialog({ mark: 'leave', user, title: a.signOutTitle, who: user.email, body: a.signOutBody, onBack: close, actions: [
+    { label: a.cancel, run: close },
+    { label: slT().signOut, style: 'danger', run: slSignOut }
+  ] });
+}
+
+// While the saved session is being checked, a splash replaces the login card
+function slAuthChecked() { document.getElementById('loginCheck')?.classList.add('done'); }
+setTimeout(slAuthChecked, 6000);
+
 slApplyTheme(slGet('studylens_theme', 'dark'));
 renderFooter();
 if (SL_PAGES.includes(location.hash.slice(1))) {
@@ -2888,54 +3057,19 @@ function hideLoginGate() {
   document.body.style.overflow = '';
 }
 
-async function gateSignIn() {
-  if (!window._fb) {
-    showGateError('Sign-in is not available right now. Please refresh and try again.');
-    return;
-  }
-  const btn      = document.getElementById('googleSignInBtn');
-  const loading  = document.getElementById('loginLoading');
-  const loadText = document.getElementById('loginLoadingText');
-  const errEl    = document.getElementById('loginError');
-
-  btn.disabled = true;
-  errEl.classList.remove('show');
-  loading.classList.add('show');
-  loadText.textContent = 'Opening Google sign-in…';
-
-  try {
-    await FB.signInWithGoogle();
-    loadText.textContent = 'Signing you in…';
-    // onUserChanged fires automatically — it will call hideLoginGate()
-  } catch (e) {
-    btn.disabled = false;
-    loading.classList.remove('show');
-    if (e.code === 'auth/popup-closed-by-user') {
-      // silent — user closed the popup themselves
-    } else if (e.code === 'auth/popup-blocked') {
-      showGateError('Popup was blocked. Please allow popups for this site in your browser settings, then try again.');
-    } else {
-      showGateError('Sign-in failed: ' + (e.message || 'Please try again.'));
-    }
-  }
-}
-
-function showGateError(msg) {
-  const el = document.getElementById('loginError');
-  if (el) { el.textContent = msg; el.classList.add('show'); }
-}
-
 // Called when Firebase module finishes loading (success or failure)
 function initFirebaseAuth() {
   if (!window._fb) {
     // Firebase unavailable — still show the gate since we can't verify identity
     showLoginGate();
+    slAuthChecked();
     return;
   }
 
   // Runs automatically on every page load — checks if user is already signed in
   FB.onUserChanged(async (user) => {
   currentUser = user;
+  slAuthChecked();
   const btn    = document.getElementById('authBtn');
   const avatar = document.getElementById('authAvatar');
   const name   = document.getElementById('authName');
@@ -2950,7 +3084,7 @@ function initFirebaseAuth() {
     avatar.src        = user.photoURL || '';
     avatar.classList.add('show');
     btn.classList.add('signed-in');
-    btn.title         = 'Tap to sign out';
+    btn.title         = 'Account and sign out';
 
     // Load cloud history + profiles (replaces localStorage)
     sessionHistory  = await FB.loadHistoryFromFirestore(user.uid, activeProfileId);
@@ -3001,9 +3135,7 @@ function initFirebaseAuth() {
     showLoginGate();
     // Reset gate UI in case they signed out and want to sign in again
     const googleBtn = document.getElementById('googleSignInBtn');
-    const loading   = document.getElementById('loginLoading');
     if (googleBtn) googleBtn.disabled = false;
-    if (loading)   loading.classList.remove('show');
 
     name.textContent = 'Sign In';
     avatar.classList.remove('show');
@@ -3022,19 +3154,6 @@ function initFirebaseAuth() {
 
 // Listen for Firebase module to become ready (fires from the module script)
 window.addEventListener('firebase-ready', initFirebaseAuth, { once: true });
-
-async function handleAuthClick() {
-  if (currentUser) {
-    if (confirm('Sign out of StudyLens?')) {
-      await FB.signOutUser();
-      // onUserChanged fires → showLoginGate() called automatically
-    }
-  } else {
-    // Shouldn't normally reach here (gate is shown when logged out)
-    // but acts as a fallback
-    showLoginGate();
-  }
-}
 
 // ── END FIREBASE ──────────────────────────────────────────────────────────────
 
