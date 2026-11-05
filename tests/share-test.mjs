@@ -15,9 +15,10 @@ await p.route(/^https?:\/\/(?!127|localhost)/, r => {
   return r.abort();
 });
 await p.goto('http://127.0.0.1:8124/'); await p.waitForTimeout(700);
+await p.addStyleTag({content:'.share-a{max-height:900px!important}.share-a::after{display:none}'});
 await p.evaluate(async () => {
   document.getElementById('loginGate').classList.add('hidden');
-  const text = '## Equilibrium constant\n\nFor the reaction:\n\n$$\\ce{N2 + 3H2 <=> 2NH3}$$\n\nThe expression is:\n\n$$K_c = \\frac{[NH_3]^2}{[N_2][H_2]^3}$$\n\n1. Write the products on top.\n2. Write the reactants below.\n\n[MOL: [H]C([H])([H])[H] | Methane]\n\n[SVG:<svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#fc6"/></marker></defs><rect width="240" height="60" fill="#1a2030"/><line x1="20" y1="30" x2="200" y2="30" stroke="#fc6" stroke-width="2" marker-end="url(#arr)"/></svg>]\n\n' + 'Extra line of explanation for a long answer. '.repeat(10);
+  const text = '## Equilibrium constant\n\nFor the reaction:\n\n$$\\ce{N2 + 3H2 <=> 2NH3}$$\n\nThe expression is:\n\n$$K_c = \\frac{[NH_3]^2}{[N_2][H_2]^3}$$\n\n1. Write the products on top.\n2. Write the reactants below.\n\n[MOL: [H]C([H])([H])[H] | Methane]\n\n[SVG:<svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#fc6"/></marker></defs><rect width="240" height="60" fill="#1a2030"/><line x1="20" y1="30" x2="200" y2="30" stroke="#fc6" stroke-width="2" marker-end="url(#arr)"/></svg>]\n\n' + 'Extra line of explanation for a long answer. '.repeat(4);
   const body = document.getElementById('resultBody'); body.innerHTML = fmt(text); injectSVGs(body);
   lastAnswerText = text; lastPayload = { question: 'Write the equilibrium constant for N2 + 3H2 reaction', subject: 'Chemistry', className: 'Class 11' };
   await new Promise(r => setTimeout(r, 700));
