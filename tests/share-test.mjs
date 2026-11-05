@@ -1,0 +1,40 @@
+import { chromium } from 'playwright';
+import http from 'node:http';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const server = http.createServer((q, s) => { const f = '.' + (q.url.split('?')[0] === '/' ? '/index.html' : q.url.split('?')[0]); if (!existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': types[path.extname(f)] || 'text/plain' }); s.end(readFileSync(f)); }).listen(8124);
+const b = await chromium.launch(), p = await (await b.newContext({ viewport: { width: 360, height: 740 } })).newPage(), errs = [];
+p.on('pageerror', e => errs.push(e.message));
+const map = { 'katex.min.js': 'node_modules/katex/dist/katex.min.js', 'katex.min.css': 'node_modules/katex/dist/katex.min.css', 'auto-render.min.js': 'node_modules/katex/dist/contrib/auto-render.min.js', 'mhchem.min.js': 'node_modules/katex/dist/contrib/mhchem.min.js', 'html-to-image.js': 'node_modules/html-to-image/dist/html-to-image.js', 'smiles-drawer.min.js': 'node_modules/smiles-drawer/dist/smiles-drawer.min.js' };
+await p.route(/^https?:\/\/(?!127|localhost)/, r => {
+  const name = r.request().url().split('/').pop().split('?')[0];
+  if (map[name]) return r.fulfill({ path: map[name], headers: { 'access-control-allow-origin': '*' } });
+  const font = /\/fonts\/(KaTeX[^?]+)/.exec(r.request().url());
+  if (font) return r.fulfill({ path: 'node_modules/katex/dist/fonts/' + font[1], headers: { 'access-control-allow-origin': '*' } });
+  return r.abort();
+});
+await p.goto('http://127.0.0.1:8124/'); await p.waitForTimeout(700);
+await p.evaluate(async () => {
+  document.getElementById('loginGate').classList.add('hidden');
+  const text = '## Equilibrium constant\n\nFor the reaction:\n\n$$\\ce{N2 + 3H2 <=> 2NH3}$$\n\nThe expression is:\n\n$$K_c = \\frac{[NH_3]^2}{[N_2][H_2]^3}$$\n\n1. Write the products on top.\n2. Write the reactants below.\n\n[MOL: [H]C([H])([H])[H] | Methane]\n\n' + 'Extra line of explanation for a long answer. '.repeat(60);
+  const body = document.getElementById('resultBody'); body.innerHTML = fmt(text); injectSVGs(body); renderKatex(body);
+  lastAnswerText = text; lastPayload = { question: 'Write the equilibrium constant for N2 + 3H2 reaction', subject: 'Chemistry', className: 'Class 11' };
+  await new Promise(r => setTimeout(r, 700));
+});
+const data = await p.evaluate(async () => {
+  const card = slShareCard();
+  const rect = card.getBoundingClientRect();
+  const blob = await slShareImage(card);
+  card.remove();
+  const url = await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); });
+  return { url, size: blob.size, w: rect.width, h: rect.height, left: document.querySelectorAll('.share-card').length };
+});
+writeFileSync('shots/share_image.png', Buffer.from(data.url.split(',')[1], 'base64'));
+console.log('share image', data.size, data.w, data.h, 'cards left', data.left);
+await p.evaluate(() => { navigator.canShare = () => false; shareAnswer(); }); await p.waitForTimeout(3500);
+await p.screenshot({ path: 'shots/share_dialog.png' });
+const shown = await p.evaluate(() => ({ title: document.querySelector('#slDlg h3')?.textContent, preview: !!document.querySelector('.share-preview') }));
+console.log('share dialog', JSON.stringify(shown), 'page errors', JSON.stringify(errs));
+await b.close(); server.close();
+process.exit(data.size > 20000 && shown.preview ? 0 : 1);
