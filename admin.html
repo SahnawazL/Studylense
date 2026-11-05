@@ -531,6 +531,7 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
 </style>
 </head>
 <body>
+<script src="/icons.js"></script>
 
 <!-- ══ LOGIN ══ -->
 <div id="loginScreen">
@@ -608,7 +609,7 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
           <button class="export-btn" onclick="exportCSV()">↓ Export CSV</button>
         </div>
         <div class="search-bar">
-          <input class="search-input" id="searchInput" placeholder="🔍  Search questions…" oninput="filterHistory()"/>
+          <input class="search-input" id="searchInput" placeholder="Search questions…" oninput="filterHistory()"/>
           <select class="filter-select" id="filterMode" onchange="filterHistory()">
             <option value="">All Modes</option>
             <option value="text">Text</option>
