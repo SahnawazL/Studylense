@@ -494,6 +494,7 @@ async function streamGroq(keys, ctx, onChunk) {
       if (!r.ok) {
         let errData = {};
         try { errData = await r.json(); } catch (_) {}
+        ctx.metric?.errors.push('groq ' + r.status);
         console.warn('[Groq] ' + model + ' refused (' + r.status + '):', String(errData.error?.message || '').slice(0, 160));
         if (r.status === 429 || (errData.error?.message || '').toLowerCase().includes('rate')) {
           const msg = (errData.error?.message || '').toLowerCase();
@@ -537,7 +538,7 @@ async function streamGroq(keys, ctx, onChunk) {
         }
       }
 
-      if (fullText) return { success: true, fullText, cut };
+      if (fullText) { if (ctx.metric) ctx.metric.model = model; return { success: true, fullText, cut }; }
 
     } catch (_) { /* network error — try next key */ }
   }
@@ -609,6 +610,7 @@ async function streamGemini(keys, ctx, onChunk) {
       if (!r.ok) {
         let errData = {};
         try { errData = await r.json(); } catch (_) {}
+        ctx.metric?.errors.push('gemini ' + r.status);
         const isQuota = r.status === 429 || errData.error?.status === 'RESOURCE_EXHAUSTED';
         if (isQuota) rot.exhausted.add(key);
         continue;
@@ -646,7 +648,7 @@ async function streamGemini(keys, ctx, onChunk) {
         }
       }
 
-      if (fullText) return { success: true, fullText };
+      if (fullText) { if (ctx.metric) ctx.metric.model = GEMINI_MODEL; return { success: true, fullText }; }
 
     } catch (_) { /* network error — try next key */ }
   }
@@ -683,7 +685,7 @@ async function continueAnswer(groqKeys, geminiKeys, ctx, soFar, onChunk) {
 async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
   const {
     question, subject, lang, board, simplify = false,
-    history = [], subjectType = 'general', uid, className,
+    history = [], subjectType = 'general', className,
   } = ctx;
 
   sseStart(res);
@@ -698,6 +700,7 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
     const cached = await cacheGet(kv, cacheKey);
     if (cached) {
       console.log('[Cache/SSE] HIT:', cacheKey.slice(0, 80));
+      if (ctx.metric) ctx.metric.cached = true;
       sseChunk(res, cached);   // single chunk = instant for the student
       sseDone(res);
       return;
@@ -742,15 +745,6 @@ async function streamTextResponse(groqKeys, geminiKeys, ctx, req, res) {
   if (isCacheable && cacheKey && fullText) {
     cacheSet(kv, cacheKey, fullText).catch(() => {});
   }
-  if (uid && fullText) {
-    const entryId = Date.now();
-    saveHistoryToFirestore(uid, {
-      id: entryId, ts: entryId, mode: 'text',
-      question: question || '', subject: subject || '',
-      className: className || '',
-      answer: fullText.slice(0, 500),
-    }).catch(() => {});
-  }
 
   sseDone(res);
 }
@@ -766,7 +760,6 @@ async function uploadImageToStorage(imageBase64, imageMime, uid, subject, classN
 
     // Get Firebase access token
     const token = await getFirebaseStorageToken(sa);
-    const bucket = `${sa.project_id}.appspot.com`;
 
     // Generate a unique filename
     const ts   = Date.now();
@@ -776,29 +769,20 @@ async function uploadImageToStorage(imageBase64, imageMime, uid, subject, classN
 
     // Upload to Firebase Storage via REST API
     const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const uploadUrl   = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(filename)}`;
-
-    const uploadRes = await fetch(uploadUrl, {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type':  imageMime || 'image/jpeg',
-        'x-goog-meta-uid':       uid || 'anon',
-        'x-goog-meta-subject':   subject || '',
-        'x-goog-meta-classname': className || '',
-        'x-goog-meta-ts':        String(ts),
-      },
-      body: imageBuffer,
-    });
-
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      console.warn('[Storage] Upload failed:', uploadRes.status, errText);
-      return null;
+    // Newer Firebase projects use .firebasestorage.app, older ones .appspot.com
+    const buckets = [process.env.FIREBASE_STORAGE_BUCKET, `${sa.project_id}.firebasestorage.app`, `${sa.project_id}.appspot.com`].filter(Boolean);
+    for (const bucket of buckets) {
+      const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(filename)}`;
+      const uploadRes = await fetch(uploadUrl, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': imageMime || 'image/jpeg' },
+        body: imageBuffer,
+      });
+      if (uploadRes.ok) return `https://storage.googleapis.com/${bucket}/${filename}`;
+      console.warn('[Storage] Upload failed:', bucket, uploadRes.status, await uploadRes.text());
+      if (uploadRes.status !== 404) return null;
     }
-
-    await uploadRes.json();
-    return `https://storage.googleapis.com/${bucket}/${filename}`;
+    return null;
 
   } catch (e) {
     console.warn('[Storage] Upload error:', e.message);
@@ -807,7 +791,6 @@ async function uploadImageToStorage(imageBase64, imageMime, uid, subject, classN
 }
 
 // ── Firebase Storage token ────────────────────────────────────────────────────
-// FIX: scope now includes 'datastore' so saveHistoryToFirestore works correctly.
 async function getFirebaseStorageToken(sa) {
   const now = Math.floor(Date.now() / 1000);
   const header  = { alg: 'RS256', typ: 'JWT' };
@@ -828,7 +811,7 @@ async function getFirebaseStorageToken(sa) {
   const binaryKey = Buffer.from(pemBody, 'base64');
 
   const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8', binaryKey.buffer,
+    'pkcs8', binaryKey,        // not .buffer: a small Buffer shares a larger memory pool
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false, ['sign']
   );
@@ -854,37 +837,6 @@ async function getFirebaseStorageToken(sa) {
 // The client-side saveHistoryEntryToFirestore has the same constraint.
 // Firestore limit is 1 MB per document — keeping entries lean avoids silent
 // write failures that cause history to disappear on refresh.
-async function saveHistoryToFirestore(uid, entry) {
-  try {
-    const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!saRaw || !uid) return;
-    const sa = JSON.parse(saRaw);
-    const token = await getFirebaseStorageToken(sa);
-    const projectId = sa.project_id;
-    const docId = String(entry.id);
-    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${uid}/history/${docId}`;
-
-    const fields = {};
-    for (const [k, v] of Object.entries(entry)) {
-      if (v === null || v === undefined) continue;
-      if (typeof v === 'string')  fields[k] = { stringValue: v };
-      else if (typeof v === 'number') fields[k] = { integerValue: String(Math.round(v)) };
-      else if (typeof v === 'boolean') fields[k] = { booleanValue: v };
-    }
-
-    await fetch(url + '?updateMask.fieldPaths=' + Object.keys(fields).join('&updateMask.fieldPaths='), {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fields }),
-    });
-  } catch (e) {
-    console.warn('[Firestore] saveHistory error:', e.message);
-  }
-}
-
 // ── Per-subject temperature ───────────────────────────────────────────────────
 // Precise subjects (maths/physics) need low temperature for accuracy.
 // Creative/language subjects benefit from slightly higher temperature.
@@ -1267,7 +1219,7 @@ function photoInstruction(lang) {
 // FIX: Added `history` parameter. When a conversation history is provided
 // (follow-up questions), we build a proper multi-turn messages array instead
 // of a single user message. This gives the AI full context of the conversation.
-async function askGroq(keys, { question, className, subject, lang, board, stream, mode, simplify, history = [], subjectType = 'general', chapter = '' }) {
+async function askGroq(keys, { metric, question, className, subject, lang, board, stream, mode, simplify, history = [], subjectType = 'general', chapter = '' }) {
   const sysPrompt = systemPrompt(className, subject, lang, board, stream, mode, !!simplify, chapter, question);
   let lastErr = null;
 
@@ -1315,6 +1267,7 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
       if (data.error) {
         const msg  = (data.error.message || '').toLowerCase();
         const code = data.error.code || r.status;
+        metric?.errors.push('groq ' + code);
         console.warn('[Groq] ' + model + ' refused (' + r.status + '):', msg.slice(0, 160));
         if (code === 429 || msg.includes('rate') || msg.includes('quota')) {
           // Per-minute limit: key is still valid, just busy right now → try next key but don't exhaust.
@@ -1330,6 +1283,7 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
 
       const answer = data.choices?.[0]?.message?.content;
       if (!answer) { lastErr = 'empty'; continue; }
+      if (metric) metric.model = model;
       return { answer, provider: 'groq' };
 
     } catch (e) {
@@ -1358,7 +1312,7 @@ async function askGroq(keys, { question, className, subject, lang, board, stream
 // we build a proper multi-turn `contents` array in Gemini's format.
 // For photo follow-ups, the original image is re-attached to the first turn
 // so the AI can still reference it throughout the conversation.
-async function askGemini(keys, { question, imageBase64, imageMime, className, subject, lang, board, stream, mode, simplify, history = [], subjectType = 'general', chapter = '' }) {
+async function askGemini(keys, { metric, question, imageBase64, imageMime, className, subject, lang, board, stream, mode, simplify, history = [], subjectType = 'general', chapter = '' }) {
   const rot = rotations.gemini;
   let lastErr = null;
 
@@ -1494,6 +1448,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
         const msg    = data.error.message || '';
         const status = data.error.status  || '';
         const code   = data.error.code    || r.status;
+        metric?.errors.push('gemini ' + code);
         const isQuota  = status === 'RESOURCE_EXHAUSTED' || code === 429
           || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('exhausted');
         const isBadKey = msg.toLowerCase().includes('api key') || code === 400 || status === 'INVALID_ARGUMENT';
@@ -1520,7 +1475,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
             });
             const d2 = await r2.json();
             const fallbackAnswer = extractGeminiText(d2);
-            if (fallbackAnswer) return { answer: fallbackAnswer, provider: 'gemini' };
+            if (fallbackAnswer) { if (metric) metric.model = GEMINI_MODEL; return { answer: fallbackAnswer, provider: 'gemini' }; }
           } catch {}
         }
 
@@ -1543,6 +1498,7 @@ async function askGemini(keys, { question, imageBase64, imageMime, className, su
       const answer = extractGeminiText(data);
       if (!answer) { lastErr = 'empty'; continue; }
 
+      if (metric) metric.model = GEMINI_MODEL;
       return { answer, provider: 'gemini' };
 
     } catch (e) {
@@ -1794,6 +1750,7 @@ Respond ONLY with a JSON array of exactly 3 strings (no other text):
 
 // ── Actual request logic ──────────────────────────────────────────────────────
 async function handleRequest(req, res) {
+  const uid = await verifiedUid(req);   // from Google, never from the request body
   const groqKeys   = loadKeys('GROQ');
   const geminiKeys = loadKeys('GEMINI');
 
@@ -1805,7 +1762,7 @@ async function handleRequest(req, res) {
 
   const {
     mode, question, imageBase64, imageMime,
-    className, subject, lang = 'en', board = '', stream = '', uid, simplify = false,
+    className, subject, lang = 'en', board = '', stream = '', simplify = false,
     subjectType: rawSubjectType = 'general',
     chapter = '',
     // FIX: Accept conversation history from the frontend.
@@ -1840,6 +1797,7 @@ async function handleRequest(req, res) {
 
   // FIX: Pass history through to askGroq and askGemini via ctx.
   const ctx = { question, imageBase64, imageMime, className, subject, lang, board, stream, mode, simplify, history, subjectType, chapter };
+  ctx.metric = req.slMetric = (mode === 'text' || mode === 'photo') ? { start: Date.now(), model: null, cached: false, errors: [] } : null;
 
   // ── STREAMING TEXT MODE ──────────────────────────────────────────────────────
   // When the client sends ?stream=1 and mode is text, bypass the normal JSON
@@ -1861,6 +1819,7 @@ async function handleRequest(req, res) {
     const cached = await cacheGet(kv, cacheKey);
     if (cached) {
       console.log('[Cache] HIT:', cacheKey.slice(0, 80));
+      if (ctx.metric) ctx.metric.cached = true;
       return res.status(200).json({ answer: cached, cached: true });
     }
     console.log('[Cache] MISS:', cacheKey.slice(0, 80));
@@ -1891,15 +1850,6 @@ async function handleRequest(req, res) {
     if (!question?.trim()) return res.status(400).json({ error: 'No quiz prompt.' });
     const result = await askQuiz(groqKeys, geminiKeys, { question, className, subject, subjectType, board });
     if (result.answer) {
-      if (uid) {
-        const entryId = Date.now();
-        saveHistoryToFirestore(uid, {
-          id: entryId, ts: entryId, mode: 'quiz',
-          question: question || '', subject: subject || '',
-          className: className || '',
-          answer: result.answer.slice(0, 500),
-        }).catch(() => {});
-      }
       return res.status(200).json({ answer: result.answer });
     }
     return res.status(500).json({ error: 'Quiz generation failed.' });
@@ -1929,21 +1879,7 @@ async function handleRequest(req, res) {
         imageUploadPromise,
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
-
-      if (uid) {
-        const entryId = Date.now();
-        saveHistoryToFirestore(uid, {
-          id: entryId, ts: entryId, mode: 'photo',
-          question: question || '', subject: subject || '',
-          className: className || '',
-          answer: result.answer.slice(0, 500),
-          ...(storageUrl ? { imageStorageUrl: storageUrl } : {}),
-        }).catch(() => {});
-
-        if (storageUrl) console.log('[Storage] Image saved:', storageUrl);
-      }
-
-      return res.status(200).json({ answer: result.answer });
+      return res.status(200).json({ answer: result.answer, imageStorageUrl: storageUrl || undefined });
     }
 
     if (result.error === 'quota') {
@@ -1978,15 +1914,6 @@ async function handleRequest(req, res) {
     const geminiResult = await askGemini(geminiKeys, ctx);
     if (geminiResult.answer) {
       if (isCacheable && cacheKey) cacheSet(kv, cacheKey, geminiResult.answer).catch(() => {});
-      if (uid) {
-        const entryId = Date.now();
-        saveHistoryToFirestore(uid, {
-          id: entryId, ts: entryId, mode: 'text',
-          question: question || '', subject: subject || '',
-          className: className || '',
-          answer: geminiResult.answer.slice(0, 500),
-        }).catch(() => {});
-      }
       return res.status(200).json({ answer: geminiResult.answer });
     }
     // Gemini failed/quota — fall through to Groq below
@@ -1998,15 +1925,6 @@ async function handleRequest(req, res) {
     const groqResult = await askGroq(groqKeys, ctx);
     if (groqResult.answer) {
       if (isCacheable && cacheKey) cacheSet(kv, cacheKey, groqResult.answer).catch(() => {});
-      if (uid) {
-        const entryId = Date.now();
-        saveHistoryToFirestore(uid, {
-          id: entryId, ts: entryId, mode: 'text',
-          question: question || '', subject: subject || '',
-          className: className || '',
-          answer: groqResult.answer.slice(0, 500),
-        }).catch(() => {});
-      }
       return res.status(200).json({ answer: groqResult.answer });
     }
   }
@@ -2016,15 +1934,6 @@ async function handleRequest(req, res) {
     const geminiResult = await askGemini(geminiKeys, ctx);
     if (geminiResult.answer) {
       if (isCacheable && cacheKey) cacheSet(kv, cacheKey, geminiResult.answer).catch(() => {});
-      if (uid) {
-        const entryId = Date.now();
-        saveHistoryToFirestore(uid, {
-          id: entryId, ts: entryId, mode: 'text',
-          question: question || '', subject: subject || '',
-          className: className || '',
-          answer: geminiResult.answer.slice(0, 500),
-        }).catch(() => {});
-      }
       return res.status(200).json({ answer: geminiResult.answer });
     }
 
@@ -2040,6 +1949,50 @@ async function handleRequest(req, res) {
   });
 }
 
+// ── Who is asking ──────────────────────────────────────────────
+// The app sends the student's Firebase ID token. Google confirms it, and the
+// result is kept for a few minutes so most questions need no extra call.
+const FIREBASE_WEB_KEY = 'AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU';   // public by design: identifies the project
+const knownTokens = new Map();
+async function verifiedUid(req) {
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const known = knownTokens.get(token);
+  if (known && known.until > Date.now()) return known.uid;
+  try {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_KEY}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: token }), signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) return null;
+    const uid = (await r.json()).users?.[0]?.localId || null;
+    if (knownTokens.size > 500) knownTokens.clear();
+    if (uid) knownTokens.set(token, { uid, until: Date.now() + 300_000 });
+    return uid;
+  } catch { return null; }
+}
+
+// ── AI health: one small daily record, shown in the admin dashboard ──
+async function recordHealth(m, res) {
+  if (!m) return;
+  try {
+    const kv = await getKV();
+    if (!kv) return;
+    const key = `health:${new Date().toISOString().slice(0, 10)}`, ms = Date.now() - m.start, p = kv.pipeline();
+    p.hincrby(key, 'requests', 1);
+    if (m.cached) p.hincrby(key, 'cached', 1);
+    else if (m.model) {
+      p.hincrby(key, 'ok', 1);
+      p.hincrby(key, 'ms', ms);
+      p.hincrby(key, `model:${m.model}`, 1);
+      if (ms > 20000) p.hincrby(key, 'slow', 1);
+    } else p.hincrby(key, res.statusCode === 429 ? 'limited' : 'failed', 1);
+    for (const label of new Set(m.errors)) p.hincrby(key, `err:${label}`, 1);
+    p.expire(key, 40 * 86400);
+    await p.exec();
+  } catch { /* health numbers must never affect an answer */ }
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   cors(res);
@@ -2052,5 +2005,6 @@ export default async function handler(req, res) {
     return await handleRequest(req, res);
   } finally {
     await saveToKV();
+    await recordHealth(req.slMetric, res);
   }
 }

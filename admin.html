@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
+<meta name="robots" content="noindex,nofollow"/>
 <title>StudyLens — Command Center</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
@@ -528,6 +529,28 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
 ::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* Phone layout: the tabs stay reachable, filters and tables stay inside the screen */
+@media (max-width: 800px) {
+  .nav-time { display: none; }
+  .layout { flex-direction: column; }
+  .main { min-width: 0; width: 100%; box-sizing: border-box; }
+  .sidebar { display: flex; flex-direction: row; gap: .25rem; width: 100%; height: auto; min-height: 0; padding: .4rem .5rem; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); box-sizing: border-box; scrollbar-width: none; position: static; }
+  .sidebar::-webkit-scrollbar { display: none; }
+  .sidebar-label, .nav-divider { display: none; }
+  .sidebar .nav-item { flex: none; width: auto; min-height: 40px; padding: .35rem .7rem; white-space: nowrap; }
+  .filter-select, .search-input { width: 100%; max-width: 100%; box-sizing: border-box; }
+}
+.nav-count{margin-left:.45rem;min-width:1.2rem;padding:.05rem .3rem;border-radius:9px;background:var(--red);color:#fff;font-size:.6rem;font-weight:700;text-align:center}
+.growth-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin-bottom:1rem}
+.growth-row .card{padding:.8rem}
+.growth-num{font-family:var(--mono);font-size:1.5rem;color:var(--cyan);font-weight:700}
+.danger-zone{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border);font-family:var(--mono);font-size:.68rem;color:var(--muted);line-height:1.6}
+.danger-zone label{display:block;margin:.6rem 0 .3rem}
+.danger-zone input{width:100%;box-sizing:border-box;margin-bottom:.6rem}
+.danger-btn{border-color:var(--red)!important;color:var(--red)!important}
+.danger-btn:disabled{opacity:.4}
+#deleteResult{margin-top:.5rem;color:var(--text)}
 </style>
 </head>
 <body>
@@ -539,17 +562,9 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
     <div class="login-eyebrow">StudyLens Command Center</div>
     <div class="login-card">
       <div class="login-title">Admin <span>Access</span></div>
-      <div class="login-sub">// RESTRICTED — AUTHORIZED PERSONNEL ONLY</div>
-      <div class="form-group">
-        <label class="form-label">Admin Secret</label>
-        <input class="form-input" type="password" id="secretInput" placeholder="Enter your password…" autocomplete="off"/>
-      </div>
-      <div class="form-group">
-        <label class="form-label">API Endpoint</label>
-        <input class="form-input" type="text" id="apiEndpointInput" placeholder="https://your-app.vercel.app/api/admin"/>
-      </div>
-      <button class="login-btn" onclick="doLogin()">ACCESS DASHBOARD →</button>
-      <div class="login-error" id="loginError">⚠ Invalid credentials or endpoint unreachable.</div>
+      <div class="login-sub">// RESTRICTED — ADMIN ACCOUNT ONLY</div>
+      <button class="login-btn" id="adminSignIn" onclick="doLogin()">CONTINUE WITH GOOGLE</button>
+      <div class="login-error" id="loginError"></div>
     </div>
   </div>
 </div>
@@ -579,8 +594,10 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
       <button class="nav-item" onclick="switchTab('activity',this)"><span class="nav-item-icon">📋</span>Activity</button>
       <button class="nav-item" onclick="switchTab('users',this)"><span class="nav-item-icon">👥</span>Users</button>
       <button class="nav-item" onclick="switchTab('images',this)"><span class="nav-item-icon">📷</span>Images</button>
+      <button class="nav-item" onclick="switchTab('reports',this)"><span class="nav-item-icon">🚩</span>Reports<span class="nav-count" id="reportCount" hidden></span></button>
       <div class="nav-divider"></div>
       <div class="sidebar-label">System</div>
+      <button class="nav-item" onclick="switchTab('health',this)"><span class="nav-item-icon">🏃</span>AI Health</button>
       <button class="nav-item" onclick="switchTab('quota',this)"><span class="nav-item-icon">⚡</span>API Quota</button>
       <button class="nav-item" onclick="switchTab('setup',this)"><span class="nav-item-icon">⚙️</span>Setup</button>
     </aside>
@@ -654,6 +671,26 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
         <div id="quota-content" style="display:none"></div>
       </div>
 
+      <!-- ══ REPORTS ══ -->
+      <div class="panel" id="panel-reports">
+        <div class="page-hdr">
+          <div class="page-title">Reports</div>
+          <div class="page-sub">// ANSWERS FLAGGED BY STUDENTS</div>
+        </div>
+        <div class="loading" id="reports-loading"><div class="loading-track"></div>LOADING REPORTS…</div>
+        <div id="reports-content" style="display:none"></div>
+      </div>
+
+      <!-- ══ AI HEALTH ══ -->
+      <div class="panel" id="panel-health">
+        <div class="page-hdr">
+          <div class="page-title">AI Health</div>
+          <div class="page-sub">// ANSWERS, FAILURES, SPEED AND MODELS</div>
+        </div>
+        <div class="loading" id="health-loading"><div class="loading-track"></div>LOADING AI HEALTH…</div>
+        <div id="health-content" style="display:none"></div>
+      </div>
+
       <!-- ══ SETUP ══ -->
       <div class="panel" id="panel-setup">
         <div class="page-hdr">
@@ -662,8 +699,8 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
         </div>
         <div class="setup-block" style="--c:var(--orange)">
           <div class="setup-title">▸ Required Environment Variables</div>
-          <div class="setup-step"><span class="setup-num">1.</span><span>Add <code>ADMIN_SECRET</code> — your admin panel password.</span></div>
-          <div class="setup-step"><span class="setup-num">2.</span><span>Firebase Console → Project Settings → Service Accounts → <strong>Generate new private key</strong>. Paste entire JSON as <code>FIREBASE_SERVICE_ACCOUNT</code>.</span></div>
+          <div class="setup-step"><span class="setup-num">1.</span><span>Admin access uses Google sign-in. No password is needed.</span></div>
+          <div class="setup-step"><span class="setup-num">2.</span><span>Firebase Console → Project Settings → Service Accounts → <strong>Generate new private key</strong>, then add it as <code>FIREBASE_SERVICE_ACCOUNT</code>.</span></div>
           <div class="setup-step"><span class="setup-num">3.</span><span>Get free Groq keys at <code>console.groq.com</code> → add as <code>GROQ_KEY_1</code>, <code>GROQ_KEY_2</code>, etc.</span></div>
           <div class="setup-step"><span class="setup-num">4.</span><span>Get free Gemini keys at <code>aistudio.google.com</code> → add as <code>GEMINI_KEY_1</code>, <code>GEMINI_KEY_2</code>, etc.</span></div>
           <div class="setup-step"><span class="setup-num">5.</span><span>Vercel Dashboard → Storage → Create KV Database → link to project → add <code>KV_REST_API_URL</code> and <code>KV_REST_API_TOKEN</code>.</span></div>
@@ -676,16 +713,8 @@ pre{background:var(--s2);border:1px solid var(--border);padding:.85rem;font-fami
           <div class="setup-step"><span class="setup-num">→</span><span><code>/index.html</code> — student-facing app (root of repo)</span></div>
         </div>
         <div class="setup-block" style="--c:var(--yellow)">
-          <div class="setup-title">▸ Firebase Storage Rules</div>
-          <pre>rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /question-images/{allPaths=**} {
-      allow read: if false;   // Admin reads via service account
-      allow write: if false;  // Server-side only
-    }
-  }
-}</pre>
+          <div class="setup-title">▸ Firebase Rules</div>
+          <div class="setup-step"><span class="setup-num">→</span><span><code>firestore.rules</code> and <code>storage.rules</code> are in the repo. They are tested and published automatically when they change on main.</span></div>
         </div>
       </div>
 
@@ -724,8 +753,10 @@ service firebase.storage {
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
-let apiEndpoint = '';
-let adminSecret = '';
+let adminUser = null;
+let forceFresh = false;
+let imageList = [];
+let userList = [];
 let activeTab   = 'overview';
 let histPage    = 0;
 let allHistory  = [];    // full loaded history for search/filter
@@ -740,50 +771,67 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── Login ─────────────────────────────────────────────────────────────────────
-async function doLogin() {
-  const secret   = document.getElementById('secretInput').value.trim();
-  const endpoint = document.getElementById('apiEndpointInput').value.trim();
-  const errEl    = document.getElementById('loginError');
-  errEl.classList.remove('show');
-  if (!secret || !endpoint) {
-    errEl.textContent = '⚠ Please fill in both fields.';
-    errEl.classList.add('show'); return;
-  }
-  try {
-    const res = await fetch(endpoint, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'kv', secret}),
-    });
-    if (res.status === 401) { errEl.textContent='⚠ Wrong password.'; errEl.classList.add('show'); return; }
-    if (!res.ok) { const d=await res.json().catch(()=>({})); errEl.textContent='⚠ Error: '+(d.error||res.status); errEl.classList.add('show'); return; }
-  } catch(e) { errEl.textContent='⚠ Cannot reach endpoint. Check URL.'; errEl.classList.add('show'); return; }
-
-  apiEndpoint = endpoint; adminSecret = secret;
-  sessionStorage.setItem('sl_ep', endpoint);
-  sessionStorage.setItem('sl_s', secret);
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('app').classList.add('visible');
-  loadOverview();
+// ── Text from students is never trusted as HTML ─────────────────
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function logout() { sessionStorage.clear(); location.reload(); }
+// ── Login: Google sign-in, and the server decides who is the admin ──
+function loginMessage(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+}
+async function doLogin() {
+  if (!window.adminAuth) return loginMessage('Sign-in could not load. Please refresh and try again.');
+  const btn = document.getElementById('adminSignIn');
+  btn.disabled = true;
+  loginMessage('');
+  try { await window.adminAuth.signIn(); }
+  catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+      loginMessage(e.code === 'auth/popup-blocked' ? 'Your browser blocked the Google window. Allow pop-ups and try again.' : 'Sign-in failed. Please try again.');
+    }
+  }
+  btn.disabled = false;
+}
+function logout() { window.adminAuth ? window.adminAuth.signOut() : location.reload(); }
 
-window.addEventListener('DOMContentLoaded', () => {
-  const ep = sessionStorage.getItem('sl_ep');
-  const s  = sessionStorage.getItem('sl_s');
-  if (ep && s) { document.getElementById('apiEndpointInput').value=ep; document.getElementById('secretInput').value=s; }
-  document.getElementById('secretInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-  document.getElementById('apiEndpointInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
-});
+async function onAdminUser(user) {
+  adminUser = user;
+  const app = document.getElementById('app'), screen = document.getElementById('loginScreen');
+  if (!user) {
+    app.classList.remove('visible');
+    screen.style.display = '';
+    return;
+  }
+  try {
+    await api('kv');                                     // the server's answer is what opens the dashboard
+    loginMessage('');
+    screen.style.display = 'none';
+    app.classList.add('visible');
+    loadOverview();
+    loadReports(true);
+  } catch (e) {
+    const denied = e.status === 401 || e.status === 403;
+    loginMessage(denied ? e.message : 'Could not reach the server: ' + e.message);
+    if (denied && window.adminAuth) window.adminAuth.signOut();
+  }
+}
 
-// ── API ───────────────────────────────────────────────────────────────────────
-async function api(action, extra={}) {
-  const res = await fetch(apiEndpoint, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action, secret:adminSecret, ...extra}),
+// ── API ─────────────────────────────────────
+async function api(action, extra = {}) {
+  const fresh = forceFresh; forceFresh = false;
+  const token = await adminUser.getIdToken();
+  const res = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, fresh, ...extra }),
   });
-  if (!res.ok) { const d=await res.json().catch(()=>({})); throw new Error(d.error||`HTTP ${res.status}`); }
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw Object.assign(new Error(d.error || `HTTP ${res.status}`), { status: res.status });
+  }
   return res.json();
 }
 
@@ -800,14 +848,19 @@ function switchTab(tab, el) {
   if (tab==='users') loadUsers();
   if (tab==='images') loadImages();
   if (tab==='quota') loadQuota();
+  if (tab==='reports') loadReports();
+  if (tab==='health') loadHealth();
 }
 
 function refreshCurrent() {
+  forceFresh = true;
   if (activeTab==='overview') { document.getElementById('overview-content').style.display='none'; document.getElementById('overview-content').innerHTML=''; loadOverview(); }
   if (activeTab==='activity') { histPage=0; loadActivity(); }
   if (activeTab==='users') loadUsers();
   if (activeTab==='images') loadImages();
   if (activeTab==='quota') loadQuota();
+  if (activeTab==='reports') loadReports();
+  if (activeTab==='health') loadHealth();
 }
 
 function show(loadId, contentId) {
@@ -819,7 +872,7 @@ function loading(loadId, contentId) {
   document.getElementById(contentId).style.display='none';
 }
 function errState(contentId, msg) {
-  document.getElementById(contentId).innerHTML=`<div class="empty"><span class="empty-icon">⚠️</span>${msg}</div>`;
+  document.getElementById(contentId).innerHTML=`<div class="empty"><span class="empty-icon">⚠️</span>${esc(msg)}</div>`;
   document.getElementById(contentId).style.display='block';
 }
 
@@ -870,7 +923,7 @@ function renderOverview(d, hist) {
     const maxS = Math.max(...d.topSubjects.map(([,v])=>v),1);
     subjHTML = d.topSubjects.slice(0,6).map(([s,c])=>`
       <div class="bar-row">
-        <div class="bar-lbl">${s}</div>
+        <div class="bar-lbl">${esc(s)}</div>
         <div class="bar-track"><div class="bar-fill" data-w="${Math.round(c/maxS*100)}" style="width:0%;background:var(--cyan)"></div></div>
         <div class="bar-num">${c}</div>
       </div>`).join('');
@@ -881,7 +934,7 @@ function renderOverview(d, hist) {
     const maxC = Math.max(...d.topClasses.map(([,v])=>v),1);
     clsHTML = d.topClasses.slice(0,6).map(([c,n])=>`
       <div class="bar-row">
-        <div class="bar-lbl">Class ${c}</div>
+        <div class="bar-lbl">Class ${esc(c)}</div>
         <div class="bar-track"><div class="bar-fill" data-w="${Math.round(n/maxC*100)}" style="width:0%;background:var(--green)"></div></div>
         <div class="bar-num">${n}</div>
       </div>`).join('');
@@ -945,6 +998,7 @@ function renderOverview(d, hist) {
     </div>
 
     <!-- DAILY CHART -->
+    ${growthHTML(d.growth)}
     ${dayChart ? `
     <div class="sec-hdr"><span class="sec-title">Daily Activity — Last ${d.recentDays.length} Days</span><div class="sec-line"></div></div>
     <div class="card" style="margin-bottom:1.75rem">
@@ -984,7 +1038,7 @@ async function loadActivity() {
     // populate subject filter
     const subjects = [...new Set(allHistory.map(e=>e.subject).filter(Boolean))].sort();
     const sel = document.getElementById('filterSubject');
-    sel.innerHTML = '<option value="">All Subjects</option>' + subjects.map(s=>`<option value="${s}">${s}</option>`).join('');
+    sel.innerHTML = '<option value="">All Subjects</option>' + subjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
     filteredHistory = [...allHistory];
     renderHistory();
     show('activity-loading','activity-content');
@@ -1024,14 +1078,14 @@ function renderHistory() {
     const q = (e.question||'').slice(0,55)+(e.question?.length>55?'…':'');
     const imgCell = e.hasImage ? `<span style="color:var(--purple)">📷</span>` : '—';
     const modeClass = e.mode==='photo'?'badge-photo':e.mode==='quiz'?'badge-quiz':'badge-text';
-    return `<tr onclick="openAnswerModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+    return `<tr data-i="${allHistory.indexOf(e)}" onclick="openAnswerModal(allHistory[this.dataset.i])">
       <td style="color:var(--muted)">${num}</td>
       <td style="color:var(--muted);font-size:.6rem;white-space:nowrap">${ts}</td>
-      <td style="color:var(--muted);font-size:.6rem" title="${e.uid}">${(e.uid||'').slice(0,10)}…</td>
-      <td><span class="badge ${modeClass}">${e.mode||'—'}</span></td>
-      <td>${e.subject||'—'}</td>
-      <td>${e.className||'—'}</td>
-      <td title="${e.question||''}">${q||'<em style="color:var(--muted)">photo only</em>'}</td>
+      <td style="color:var(--muted);font-size:.6rem" title="${esc(e.uid)}">${esc((e.uid||'').slice(0,10))}…</td>
+      <td><span class="badge ${modeClass}">${esc(e.mode||'—')}</span></td>
+      <td>${esc(e.subject||'—')}</td>
+      <td>${esc(e.className||'—')}</td>
+      <td title="${esc(e.question)}">${esc(q)||'<em style="color:var(--muted)">photo only</em>'}</td>
       <td>${imgCell}</td>
     </tr>`;
   }).join('');
@@ -1069,22 +1123,30 @@ function exportCSV() {
 }
 
 // ── ANSWER MODAL ─────────────────────────────────────────────────────────────
-function openAnswerModal(e) {
+async function openAnswerModal(e) {
   const ts = e.ts ? new Date(e.ts).toLocaleString() : '—';
-  document.getElementById('answerModalBody').innerHTML = `
-    <div class="modal-meta">
-      <span class="meta-chip">Mode: <strong>${e.mode||'—'}</strong></span>
-      <span class="meta-chip">Subject: <strong>${e.subject||'—'}</strong></span>
-      <span class="meta-chip">Class: <strong>${e.className||'—'}</strong></span>
-      <span class="meta-chip">Time: <strong>${ts}</strong></span>
-      <span class="meta-chip">UID: <strong>${(e.uid||'').slice(0,14)}…</strong></span>
-    </div>
-    ${e.question ? `<div class="modal-q">${e.question}</div>` : ''}
-    ${e.hasImage && e.imageUrl ? `<div style="margin-bottom:1rem"><img src="${e.imageUrl}" style="max-width:100%;border:1px solid var(--border)" onclick="openLightboxDirect('${e.imageUrl}','${e.subject}','${e.className}')"/></div>` : ''}
-    <div class="modal-a-label">AI Answer</div>
-    <div class="modal-a">${e.answer ? e.answer : '<em style="color:var(--muted)">Answer not stored</em>'}</div>
-  `;
+  const body = document.getElementById('answerModalBody');
+  const paint = (full, note) => {
+    const question = full.question || e.question;
+    body.innerHTML = `
+      <div class="modal-meta">
+        <span class="meta-chip">Mode: <strong>${esc(e.mode||'—')}</strong></span>
+        <span class="meta-chip">Subject: <strong>${esc(e.subject||'—')}</strong></span>
+        <span class="meta-chip">Class: <strong>${esc(e.className||'—')}</strong></span>
+        <span class="meta-chip">Time: <strong>${esc(ts)}</strong></span>
+        <span class="meta-chip">UID: <strong>${esc((e.uid||'').slice(0,14))}…</strong></span>
+      </div>
+      ${question ? `<div class="modal-q">${esc(question)}</div>` : ''}
+      ${full.imageUrl ? `<div style="margin-bottom:1rem"><img id="modalPhoto" alt="" style="max-width:100%;border:1px solid var(--border)"/></div>` : ''}
+      <div class="modal-a-label">AI Answer</div>
+      <div class="modal-a" style="white-space:pre-wrap">${note ? `<em style="color:var(--muted)">${esc(note)}</em>` : esc(full.answer) || '<em style="color:var(--muted)">Answer not stored</em>'}</div>`;
+    const img = document.getElementById('modalPhoto');
+    if (img) { img.src = full.imageUrl; img.onerror = () => img.remove(); img.onclick = () => openLightboxDirect(full.imageUrl, e.subject, e.className, ts, ''); }
+  };
+  paint({}, 'Loading…');
   document.getElementById('answerModal').classList.add('open');
+  try { paint(await api('entry', { path: e.path })); }
+  catch (err) { paint({}, err.message); }
 }
 
 // ── USERS ─────────────────────────────────────────────────────────────────────
@@ -1094,17 +1156,19 @@ async function loadUsers() {
     const data = await api('users');
     const users = data.users||[];
     if(!users.length){ show('users-loading','users-content'); errState('users-content','No users found.'); return; }
-    const rows = users.sort((a,b)=>(b.historyCount||0)-(a.historyCount||0)).map(u=>{
-      const initials = (u.uid||'?').slice(0,2).toUpperCase();
-      const seen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString() : '—';
-      return `<div class="user-row" onclick="openUserModal('${u.uid}')">
-        <div class="user-avatar">${initials}</div>
-        <div class="user-id">${u.uid}</div>
-        <div class="user-cnt" style="color:var(--cyan)">${u.historyCount} Q's</div>
-        <div class="user-seen">${seen}</div>
+    userList = users.sort((a,b)=>(b.historyCount||0)-(a.historyCount||0));
+    const rows = userList.map((u,i)=>{
+      const label = u.name || u.email || u.uid || '?';
+      const seen = u.lastSeen || u.lastLogin;
+      return `<div class="user-row" onclick="openUserModal(userList[${i}])">
+        <div class="user-avatar">${esc(label.slice(0,2).toUpperCase())}</div>
+        <div class="user-id" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(label)}${u.email && u.name ? `<br/><span style="color:var(--muted)">${esc(u.email)}</span>` : ''}</div>
+        <div class="user-cnt" style="color:var(--cyan)">${u.historyCount||0} Q's</div>
+        <div class="user-seen">${seen ? new Date(seen).toLocaleDateString() : '—'}</div>
       </div>`;
     }).join('');
     document.getElementById('users-content').innerHTML=`
+      ${data.accountsProblem ? `<div class="alert-banner">Showing only students who have asked a question. Account list unavailable: ${esc(data.accountsProblem)}</div>` : ''}
       <div class="sec-hdr"><span class="sec-title">${users.length} Users</span><div class="sec-line"></div></div>
       <div class="card" style="padding:0">${rows}</div>`;
     show('users-loading','users-content');
@@ -1114,34 +1178,189 @@ async function loadUsers() {
   }
 }
 
-function openUserModal(uid) {
-  const userHist = allHistory.filter(e=>e.uid===uid);
-  const qCount = userHist.length;
-  const photoCount = userHist.filter(e=>e.mode==='photo').length;
+async function openUserModal(u) {
+  if (!allHistory.length) { try { allHistory = (await api('history', { limit: 500 })).entries || []; } catch (_) {} }
+  const userHist = allHistory.filter(e=>e.uid===u.uid);
   const subjects = [...new Set(userHist.map(e=>e.subject).filter(Boolean))];
-  const recent = userHist.slice(0,5);
-
   document.getElementById('userModalBody').innerHTML=`
     <div class="modal-meta">
-      <span class="meta-chip">UID: <strong>${uid.slice(0,16)}…</strong></span>
-      <span class="meta-chip">Questions: <strong>${qCount}</strong></span>
-      <span class="meta-chip">Photos: <strong>${photoCount}</strong></span>
+      ${u.name ? `<span class="meta-chip">Name: <strong>${esc(u.name)}</strong></span>` : ''}
+      ${u.email ? `<span class="meta-chip">Email: <strong>${esc(u.email)}</strong></span>` : ''}
+      <span class="meta-chip">UID: <strong>${esc(u.uid.slice(0,16))}…</strong></span>
+      <span class="meta-chip">Questions: <strong>${u.historyCount||0}</strong></span>
+      <span class="meta-chip">Photos: <strong>${u.photoCount||0}</strong></span>
+      ${u.joined ? `<span class="meta-chip">Joined: <strong>${esc(new Date(u.joined).toLocaleDateString())}</strong></span>` : ''}
     </div>
-    ${subjects.length ? `<div style="margin-bottom:1rem"><div class="modal-a-label">Subjects</div><div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem">${subjects.map(s=>`<span class="meta-chip"><strong>${s}</strong></span>`).join('')}</div></div>` : ''}
+    ${subjects.length ? `<div style="margin-bottom:1rem"><div class="modal-a-label">Subjects</div><div style="display:flex;flex-wrap:wrap;gap:.3rem">${subjects.map(s=>`<span class="meta-chip">${esc(s)}</span>`).join('')}</div></div>` : ''}
     <div class="modal-a-label">Recent Questions</div>
-    ${recent.length ? recent.map(e=>{
+    ${userHist.length ? userHist.slice(0,5).map(e=>{
       const ts=e.ts?new Date(e.ts).toLocaleString():'—';
       const modeClass=e.mode==='photo'?'badge-photo':e.mode==='quiz'?'badge-quiz':'badge-text';
       return `<div style="padding:.65rem 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.65rem">
         <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.3rem">
-          <span class="badge ${modeClass}">${e.mode}</span>
-          <span style="color:var(--muted)">${ts}</span>
+          <span class="badge ${modeClass}">${esc(e.mode)}</span>
+          <span style="color:var(--muted)">${esc(ts)}</span>
         </div>
-        <div style="color:var(--text)">${(e.question||'(photo)').slice(0,80)}</div>
+        <div style="color:var(--text)">${esc((e.question||'(photo)').slice(0,80))}</div>
       </div>`;
-    }).join('') : '<div style="color:var(--muted);font-family:var(--mono);font-size:.68rem">No history available</div>'}
+    }).join('') : '<div style="color:var(--muted);font-family:var(--mono);font-size:.68rem">No questions yet</div>'}
+    <div class="danger-zone">
+      <div class="modal-a-label">Delete student data</div>
+      <p>Removes this student's history, bookmarks, family profiles, reports and stored photos. This cannot be undone. Their sign-in account stays, so they can start again.</p>
+      <label for="deleteWord">Type DELETE to confirm</label>
+      <input id="deleteWord" class="search-input" autocomplete="off" oninput="document.getElementById('deleteGo').disabled=this.value.trim()!=='DELETE'"/>
+      <button id="deleteGo" class="pg-btn danger-btn" disabled onclick="deleteStudentData(currentStudent)">Delete all data</button>
+      <div id="deleteResult"></div>
+    </div>
   `;
+  currentStudent = u;
   document.getElementById('userModal').classList.add('open');
+}
+
+let currentStudent = null;
+async function deleteStudentData(u) {
+  const go = document.getElementById('deleteGo'), out = document.getElementById('deleteResult');
+  go.disabled = true; go.textContent = 'Deleting…';
+  try {
+    const r = await api('deleteStudent', { uid: u.uid });
+    out.textContent = `Deleted ${r.records} records, ${r.reports} reports and ${r.photos} photos.`;
+    allHistory = allHistory.filter(e => e.uid !== u.uid);
+    go.textContent = 'Deleted';
+    forceFresh = true;
+    loadUsers();
+  } catch (e) {
+    out.textContent = e.message;
+    go.disabled = false; go.textContent = 'Delete all data';
+  }
+}
+
+// ── GROWTH ─────────────────────────────────────────
+function growthHTML(g) {
+  if (!g) return '';
+  const chart = (key) => {
+    const max = Math.max(...g.days.map(d=>d[key]), 1);
+    return g.days.map((d,i)=>`<div class="day-col">
+      <div class="day-bar" style="height:${Math.max(3,Math.round(d[key]/max*100))}%"><div class="day-tip">${d[key]} · ${esc(d.day)}</div></div>
+      <div class="day-lbl">${i%6===5?esc(d.day.slice(5)):''}</div>
+    </div>`).join('');
+  };
+  return `
+    <div class="sec-hdr"><span class="sec-title">Growth</span><div class="sec-line"></div></div>
+    <div class="growth-row">
+      <div class="card"><div class="card-title">Active today</div><div class="growth-num">${g.activeToday}</div></div>
+      <div class="card"><div class="card-title">Active this week</div><div class="growth-num">${g.activeWeek}</div></div>
+      <div class="card"><div class="card-title">New this week</div><div class="growth-num">${g.newWeek}</div></div>
+    </div>
+    <div class="card" style="margin-bottom:1rem"><div class="card-title">New sign-ups, last 30 days</div><div class="daily-chart">${chart('signups')}</div></div>
+    <div class="card" style="margin-bottom:1rem"><div class="card-title">Active students, last 30 days</div><div class="daily-chart">${chart('active')}</div></div>`;
+}
+
+// ── REPORTS ────────────────────────────────────────
+const REASON_LABEL = { wrong:'Wrong answer', diagram:'Wrong diagram', format:'Display problem', other:'Other' };
+let reportList = [];
+function reportBadge() {
+  const open = reportList.filter(r=>r.status!=='resolved').length, el = document.getElementById('reportCount');
+  el.textContent = open; el.hidden = !open;
+}
+async function loadReports(quiet) {
+  if (!quiet) loading('reports-loading','reports-content');
+  try {
+    reportList = (await api('reports')).reports || [];
+    reportBadge();
+    if (quiet) return;
+    renderReports();
+    show('reports-loading','reports-content');
+  } catch(e) {
+    if (quiet) return;
+    document.getElementById('reports-loading').style.display='none';
+    errState('reports-content', e.message);
+  }
+}
+function renderReports() {
+  const el = document.getElementById('reports-content');
+  if (!reportList.length) { el.innerHTML='<div class="empty"><span class="empty-icon">🚩</span>No reports yet.</div>'; return; }
+  el.innerHTML = `<div class="card" style="padding:0">${reportList.map((r,i)=>`
+    <div class="user-row" onclick="openReportModal(reportList[${i}])">
+      <span class="badge ${r.status==='resolved'?'badge-text':'badge-photo'}">${r.status==='resolved'?'Resolved':'Open'}</span>
+      <div class="user-id" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(REASON_LABEL[r.reason]||r.reason)}<br/><span style="color:var(--muted)">${esc((r.question||'(photo)').slice(0,70))}</span></div>
+      <div class="user-seen">${r.ts?esc(new Date(r.ts).toLocaleDateString()):'—'}</div>
+    </div>`).join('')}</div>`;
+}
+function openReportModal(r) {
+  document.getElementById('answerModalBody').innerHTML = `
+    <div class="modal-meta">
+      <span class="meta-chip">Reason: <strong>${esc(REASON_LABEL[r.reason]||r.reason)}</strong></span>
+      <span class="meta-chip">Subject: <strong>${esc(r.subject||'—')}</strong></span>
+      <span class="meta-chip">Class: <strong>${esc(r.className||'—')}</strong></span>
+      <span class="meta-chip">Student: <strong>${esc(r.name||r.email||r.uid)}</strong></span>
+      <span class="meta-chip">Time: <strong>${r.ts?esc(new Date(r.ts).toLocaleString()):'—'}</strong></span>
+    </div>
+    ${r.note ? `<div class="modal-a-label">Student's note</div><div class="modal-a" style="margin-bottom:1rem;white-space:pre-wrap">${esc(r.note)}</div>` : ''}
+    ${r.question ? `<div class="modal-q">${esc(r.question)}</div>` : ''}
+    <div class="modal-a-label">AI Answer</div>
+    <div class="modal-a" style="white-space:pre-wrap">${esc(r.answer)}</div>
+    <div style="display:flex;gap:.5rem;margin-top:1rem">
+      <button class="pg-btn" onclick="setReport(${esc(JSON.stringify(r.id))},'${r.status==='resolved'?'open':'resolved'}')">${r.status==='resolved'?'Reopen':'Mark resolved'}</button>
+      <button class="pg-btn danger-btn" onclick="removeReport(${esc(JSON.stringify(r.id))})">Delete</button>
+    </div>`;
+  document.getElementById('answerModal').classList.add('open');
+}
+async function setReport(id, status) {
+  try {
+    await api('reportSet', { id, status });
+    reportList.forEach(r=>{ if(r.id===id) r.status=status; });
+    closeModal('answerModal'); reportBadge(); renderReports();
+  } catch(e) { alert(e.message); }
+}
+async function removeReport(id) {
+  try {
+    await api('reportDelete', { id });
+    reportList = reportList.filter(r=>r.id!==id);
+    closeModal('answerModal'); reportBadge(); renderReports();
+  } catch(e) { alert(e.message); }
+}
+
+// ── AI HEALTH ──────────────────────────────────────
+async function loadHealth() {
+  loading('health-loading','health-content');
+  try {
+    const days = (await api('health')).days;
+    const el = document.getElementById('health-content');
+    if (!days) {
+      el.innerHTML = '<div class="alert-banner">Upstash is not connected, so AI health cannot be recorded.</div>';
+      show('health-loading','health-content'); return;
+    }
+    if (!days.some(d=>d.requests)) {
+      el.innerHTML = '<div class="empty"><span class="empty-icon">🏃</span>No questions recorded yet. Numbers appear here after the next question.</div>';
+      show('health-loading','health-content'); return;
+    }
+    const sum = key => days.reduce((n,d)=>n+(d[key]||0),0);
+    const merge = key => { const all={}; days.forEach(d=>Object.entries(d[key]).forEach(([k,v])=>{all[k]=(all[k]||0)+v})); return Object.entries(all).sort((a,b)=>b[1]-a[1]); };
+    const total=sum('requests'), bad=sum('failed')+sum('limited'), avg=sum('ok')?Math.round(sum('ms')/sum('ok')/100)/10:0;
+    const rate=total?Math.round(bad/total*1000)/10:0;
+    const list = rows => rows.length ? rows.map(([k,v])=>`<div class="bar-row"><div class="bar-lbl" style="width:auto;flex:1">${esc(k)}</div><div class="bar-num" style="width:auto">${v}</div></div>`).join('') : '<div style="color:var(--muted);font-family:var(--mono);font-size:.68rem">None</div>';
+    const rows = days.filter(d=>d.requests).map(d=>`<tr>
+      <td>${esc(d.day)}</td><td>${d.requests}</td><td>${d.ok}</td><td>${d.cached}</td>
+      <td style="color:${d.failed+d.limited?'var(--red)':'inherit'}">${d.failed+d.limited}</td>
+      <td>${d.ok?(Math.round(d.ms/d.ok/100)/10)+'s':'—'}</td></tr>`).join('');
+    el.innerHTML = `
+      ${bad?`<div class="alert-banner crit">${bad} of ${total} questions got no answer in the last 14 days (${rate}%).</div>`:'<div class="alert-banner ok">Every question was answered in the last 14 days.</div>'}
+      <div class="growth-row">
+        <div class="card"><div class="card-title">Questions</div><div class="growth-num">${total}</div></div>
+        <div class="card"><div class="card-title">Average time</div><div class="growth-num">${avg}s</div></div>
+        <div class="card"><div class="card-title">From saved answers</div><div class="growth-num">${sum('cached')}</div></div>
+      </div>
+      <div class="sec-hdr"><span class="sec-title">Daily</span><div class="sec-line"></div></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Day</th><th>Asked</th><th>AI</th><th>Saved</th><th>Failed</th><th>Avg time</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="sec-hdr" style="margin-top:1.25rem"><span class="sec-title">Models used</span><div class="sec-line"></div></div>
+      <div class="card">${list(merge('models'))}</div>
+      <div class="sec-hdr" style="margin-top:1.25rem"><span class="sec-title">Provider errors</span><div class="sec-line"></div></div>
+      <div class="card">${list(merge('errors'))}<p style="color:var(--muted);font-family:var(--mono);font-size:.62rem;margin:.6rem 0 0">Students may still get an answer from the backup AI when these happen.</p></div>`;
+    show('health-loading','health-content');
+  } catch(e) {
+    document.getElementById('health-loading').style.display='none';
+    errState('health-content', e.message);
+  }
 }
 
 // ── IMAGES ────────────────────────────────────────────────────────────────────
@@ -1149,24 +1368,25 @@ async function loadImages() {
   loading('images-loading','images-content');
   try {
     const data = await api('images',{limit:60});
-    const images = data.images||[];
+    const images = imageList = data.images||[];
     if(!images.length){
-      document.getElementById('images-content').innerHTML=`<div class="empty"><span class="empty-icon">📷</span>No images saved yet.<br/>Images are stored when students upload photos.</div>`;
+      document.getElementById('images-content').innerHTML=`<div class="empty"><span class="empty-icon">📷</span>${esc(data.problem||'No images saved yet.')}</div>`;
       show('images-loading','images-content');return;
     }
-    const grid = images.map(img=>{
+    const grid = images.map((img,i)=>{
       const t = img.created?new Date(img.created).toLocaleString():'—';
       const kb = img.size?Math.round(img.size/1024)+' KB':'';
-      return `<div class="img-item" onclick="openLightboxDirect('${img.url}','${img.subject||''}','${img.className||''}','${t}','${kb}')">
-        <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.15'"/>
+      return `<div class="img-item" onclick="openImage(${i})">
+        <img src="${esc(img.url)}" alt="" loading="lazy" onerror="this.style.opacity='.15'"/>
         <div class="img-meta">
-          <div class="img-subj">${img.subject||'Unknown'}</div>
-          <div class="img-time">${t}</div>
+          <div class="img-subj">${esc(img.subject||'Unknown')}</div>
+          <div class="img-time">${esc(t)}</div>
         </div>
       </div>`;
     }).join('');
     document.getElementById('images-content').innerHTML=`
-      <div class="sec-hdr"><span class="sec-title">${images.length} Images Stored</span><div class="sec-line"></div></div>
+      <div class="sec-hdr"><span class="sec-title">${data.total||images.length} Images Stored</span><div class="sec-line"></div></div>
+      <div class="alert-banner ok">Photos delete automatically after ${esc(data.keepDays||30)} days.${data.lastCleanup?` Last cleanup ${esc(new Date(data.lastCleanup.at).toLocaleDateString())}: ${esc(data.lastCleanup.deleted)} removed.`:''}</div>
       <div class="img-grid">${grid}</div>`;
     show('images-loading','images-content');
   } catch(e) {
@@ -1181,8 +1401,6 @@ async function loadQuota() {
   try {
     const data = await api('kv');
     const kv = data.kvState;
-
-    const LIMITS = { groqSenior:1000, groqJunior:14400, gemini:500 };
 
     if(!kv) {
       document.getElementById('quota-content').innerHTML=`
@@ -1200,7 +1418,6 @@ async function loadQuota() {
 
     for (const [slot, state] of Object.entries(kv)) {
       const exhausted = state.exhausted||[];
-      const limit = LIMITS[slot]||'∞';
       const usedKeys = exhausted.length;
 
       if(usedKeys>0) alertsHTML+=`<div class="alert-banner crit">⚡ ${slot}: ${usedKeys} key(s) exhausted — rotating to backups</div>`;
@@ -1228,15 +1445,7 @@ async function loadQuota() {
     document.getElementById('quota-content').innerHTML=`
       ${alertsHTML}
       <div class="sec-hdr"><span class="sec-title">Key Rotation State</span><div class="sec-line"></div></div>
-      <div class="card" style="padding:0 1.25rem">${slotsHTML}</div>
-      <div style="margin-top:1.25rem">
-        <div class="sec-hdr"><span class="sec-title">Daily Limits Reference</span><div class="sec-line"></div></div>
-        <div class="card">
-          <div class="bar-row"><div class="bar-lbl">Groq Junior (8B)</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--cyan)"></div></div><div class="bar-num" style="width:80px;color:var(--cyan)">14,400/key</div></div>
-          <div class="bar-row"><div class="bar-lbl">Groq Senior (70B)</div><div class="bar-track"><div class="bar-fill" style="width:7%;background:var(--purple)"></div></div><div class="bar-num" style="width:80px;color:var(--purple)">1,000/key</div></div>
-          <div class="bar-row"><div class="bar-lbl">Gemini (Flash)</div><div class="bar-track"><div class="bar-fill" style="width:3%;background:var(--green)"></div></div><div class="bar-num" style="width:80px;color:var(--green)">500/key</div></div>
-        </div>
-      </div>`;
+      <div class="card" style="padding:0 1.25rem">${slotsHTML}</div>`;
     show('quota-loading','quota-content');
   } catch(e) {
     document.getElementById('quota-loading').style.display='none';
@@ -1251,9 +1460,13 @@ function closeModal(id, e) {
 }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') { document.querySelectorAll('.modal-overlay.open,.lightbox.open').forEach(el=>el.classList.remove('open')); } });
 
+function openImage(i) {
+  const img = imageList[i];
+  openLightboxDirect(img.url, img.subject, img.className, img.created ? new Date(img.created).toLocaleString() : '', img.size ? Math.round(img.size/1024)+' KB' : '');
+}
 function openLightboxDirect(url, subject, className, time, size) {
   document.getElementById('lightboxImg').src=url;
-  document.getElementById('lightboxMeta').innerHTML=`Subject: ${subject||'?'} · Class: ${className||'?'}<br/>${time||''} ${size?'· '+size:''}`;
+  document.getElementById('lightboxMeta').innerHTML=`Subject: ${esc(subject||'?')} · Class: ${esc(className||'?')}<br/>${esc(time)} ${size?'· '+esc(size):''}`;
   document.getElementById('lightbox').classList.add('open');
 }
 function closeLightbox(e) {
@@ -1261,6 +1474,19 @@ function closeLightbox(e) {
   document.getElementById('lightbox').classList.remove('open');
   document.getElementById('lightboxImg').src='';
 }
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+const auth = getAuth(initializeApp({
+  apiKey: "AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU",
+  authDomain: "studylens-ca3c5.firebaseapp.com",
+  projectId: "studylens-ca3c5",
+}));
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
+window.adminAuth = { signIn: () => signInWithPopup(auth, provider), signOut: () => signOut(auth) };
+onAuthStateChanged(auth, user => onAdminUser(user));
 </script>
 </body>
 </html>
