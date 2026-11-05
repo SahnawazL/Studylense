@@ -2,12 +2,12 @@ name: Deploy Firebase rules
 
 # Tests firestore.rules, then publishes the Firestore and Storage rules whenever
 # they change on main (or manually from the Actions tab). Needs the
-# FIREBASE_SERVICE_ACCOUNT repository secret for project studylens-ca3c5.
+# FIREBASE_SERVICE_ACCOUNT repository secret.
 # If the tests fail, nothing is published and the live rules stay unchanged.
 on:
   push:
     branches: [main]
-    paths: [firestore.rules, storage.rules, firebase.json, tests/rules.test.mjs, .github/workflows/deploy-firebase-rules.yml]
+    paths: [firestore.rules, storage.rules, firebase.json, tests/rules.test.mjs, scripts/deploy-rules.mjs, .github/workflows/deploy-firebase-rules.yml]
   workflow_dispatch: {}
 
 permissions:
@@ -47,10 +47,4 @@ jobs:
       - name: Deploy rules
         env:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          if [ -z "$SA_JSON" ]; then echo "::error::Add the FIREBASE_SERVICE_ACCOUNT secret to publish the rules"; exit 1; fi
-          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx -y firebase-tools@14 deploy --only firestore:rules --project studylens-ca3c5 --non-interactive
-          npx -y firebase-tools@14 deploy --only storage --project studylens-ca3c5 --non-interactive || echo "::warning::Storage rules not published. The project may have no storage bucket yet."
-          rm -f "$RUNNER_TEMP/sa.json"
+        run: node scripts/deploy-rules.mjs
