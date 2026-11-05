@@ -12,6 +12,12 @@
  *   'users'    all accounts with their question counts
  *   'images'   stored photos with 15-minute signed links
  *   'kv'       API key rotation state
+ *   'health'   daily AI answers, failures, speed and models
+ *   'reports'  student reports; 'reportSet' and 'reportDelete' manage them
+ *   'deleteStudent'  removes one student's history, reports and photos
+ *
+ * One action is open to any signed-in student: 'report' sends a wrong-answer report.
+ * Vercel's daily schedule calls GET ?cron=photos, which removes photos past 30 days.
  *
  * Needs FIREBASE_SERVICE_ACCOUNT in Vercel. Optional: FIREBASE_STORAGE_BUCKET.
  */
@@ -22,19 +28,23 @@ export const config = {
 
 const ADMIN_EMAIL = 'balveerdj@gmail.com';
 const FIREBASE_WEB_KEY = 'AIzaSyCKINcYZ9RVKyK6rfkozVQXjoMVbH5G6zU';   // public by design: identifies the project
+const PHOTO_DAYS = 30, REPORT_REASONS = ['wrong', 'diagram', 'format', 'other'];
 const SCAN_PAGE = 1000, SCAN_MAX = 5000, SCAN_CACHE_MS = 60_000;
 const HISTORY_FIELDS = ['id', 'ts', 'mode', 'question', 'subject', 'className', 'imageStorageUrl'];
 
 // Google checks the token's signature and expiry; this checks who it belongs to.
-async function requireAdmin(req) {
+async function signedInUser(req) {
   const idToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!idToken) return { status: 401, error: 'Please sign in.' };
+  if (!idToken) return null;
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }),
   });
-  if (!r.ok) return { status: 401, error: 'Your session has expired. Please sign in again.' };
-  const user = (await r.json()).users?.[0];
-  if (!user || !user.emailVerified || String(user.email).toLowerCase() !== ADMIN_EMAIL) {
+  return r.ok ? (await r.json()).users?.[0] || null : null;
+}
+async function requireAdmin(req) {
+  const user = await signedInUser(req);
+  if (!user) return { status: 401, error: 'Your session has expired. Please sign in again.' };
+  if (!user.emailVerified || String(user.email).toLowerCase() !== ADMIN_EMAIL) {
     return { status: 403, error: 'This account does not have admin access.' };
   }
   return null;
@@ -100,17 +110,16 @@ async function scanHistory(fresh) {
     if (entries.length >= SCAN_MAX) { capped = true; break; }
   }
   entries.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  scanCache = { entries: dropPhotoCopies(entries), capped };
+  scanCache = { entries: dropCopies(entries), capped };
   scanCacheAt = Date.now();
   return scanCache;
 }
 
-// A photo question is saved twice, by the app and by the server that stores the
-// image. Count it once, and keep the copy that knows about the image.
-function dropPhotoCopies(entries) {
+// Older questions were saved twice, by the app and by the server. Count each one
+// once, and keep the copy that knows about the image.
+function dropCopies(entries) {
   const seen = new Map(), out = [];
   for (const e of entries) {
-    if (e.mode !== 'photo') { out.push(e); continue; }
     const key = `${e.uid}|${e.subject}|${e.question}`, twin = seen.get(key);
     if (twin && Math.abs((twin.ts || 0) - (e.ts || 0)) < 120_000) {
       if (e.imageStorageUrl && !twin.imageStorageUrl) twin.imageStorageUrl = e.imageStorageUrl;
@@ -120,6 +129,29 @@ function dropPhotoCopies(entries) {
     out.push(e);
   }
   return out;
+}
+
+// New sign-ups and active students for each of the last 30 days.
+function growthNumbers(entries, accounts) {
+  const days = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10));
+  const signups = {}, active = {};
+  for (const a of accounts) {
+    const day = Number(a.createdAt) ? new Date(Number(a.createdAt)).toISOString().slice(0, 10) : '';
+    signups[day] = (signups[day] || 0) + 1;
+  }
+  for (const e of entries) {
+    if (!e.ts) continue;
+    const day = new Date(e.ts).toISOString().slice(0, 10);
+    (active[day] = active[day] || new Set()).add(e.uid);
+  }
+  const lastWeek = days.slice(-7), weekly = new Set();
+  lastWeek.forEach(d => (active[d] || []).forEach(u => weekly.add(u)));
+  return {
+    days: days.map(day => ({ day, signups: signups[day] || 0, active: active[day]?.size || 0 })),
+    activeToday: active[days[29]]?.size || 0,
+    activeWeek: weekly.size,
+    newWeek: lastWeek.reduce((n, d) => n + (signups[d] || 0), 0),
+  };
 }
 
 // All sign-ups from Firebase Authentication.
@@ -157,7 +189,7 @@ async function getFirebaseToken(sa) {
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
-    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_only https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit',
+    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/devstorage.read_write https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit',
   };
 
   const encode = obj => btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -289,18 +321,46 @@ async function generateSignedUrl(sa, bucket, objectName, expiresInSeconds = 900)
   return `https://${host}${resourcePath}?${canonicalQueryString}&X-Goog-Signature=${sigHex}`;
 }
 
-// ── List images from Firebase Storage ───────────────────────────
+// ── Firebase Storage ─────────────────────────────────────────────
+// The first bucket that answers is the project's real one.
+async function listPhotos(sa, prefix = 'question-images/') {
+  const token = await getFirebaseToken(sa);
+  let status = 0;
+  for (const bucket of storageBuckets(sa)) {
+    const items = [];
+    let pageToken = '', found = false;
+    do {
+      const r = await fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o?prefix=${encodeURIComponent(prefix)}&maxResults=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      status = r.status;
+      if (!r.ok) break;
+      found = true;
+      const data = await r.json();
+      items.push(...(data.items || []));
+      pageToken = items.length < 5000 ? data.nextPageToken || '' : '';
+    } while (pageToken);
+    if (found) return { bucket, items };
+  }
+  return { bucket: null, items: [], status };
+}
+
+async function deletePhotos(sa, bucket, names) {
+  const token = await getFirebaseToken(sa);
+  let deleted = 0;
+  for (let i = 0; i < names.length; i += 10) {
+    const done = await Promise.all(names.slice(i, i + 10).map(name =>
+      fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(name)}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      }).then(r => r.ok || r.status === 404).catch(() => false)));
+    deleted += done.filter(Boolean).length;
+  }
+  return deleted;
+}
+
 async function listStorageImages(sa, maxResults = 60) {
   if (!sa.project_id) return { images: [], problem: 'FIREBASE_SERVICE_ACCOUNT not configured' };
-  const token = await getFirebaseToken(sa);
-  let bucket = null, data = null, status = 0;
-  for (const name of storageBuckets(sa)) {
-    const r = await fetch(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(name)}/o?prefix=question-images/&maxResults=500`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    status = r.status;
-    if (r.ok) { bucket = name; data = await r.json(); break; }
-  }
+  const { bucket, items, status } = await listPhotos(sa);
   if (!bucket) {
     return { images: [], problem: status === 404
       ? 'No Firebase Storage bucket exists for this project, so question photos cannot be saved yet.'
@@ -310,8 +370,8 @@ async function listStorageImages(sa, maxResults = 60) {
   // Storage keeps only the file: the question record says who sent it and for what subject.
   const { entries } = await scanHistory();
   const byFile = new Map(entries.filter(e => e.imageStorageUrl).map(e => [e.imageStorageUrl.split('/').pop(), e]));
-  const items = (data.items || []).sort((a, b) => String(b.timeCreated).localeCompare(String(a.timeCreated))).slice(0, maxResults);
-  const images = await Promise.all(items.map(async item => {
+  const newest = items.sort((a, b) => String(b.timeCreated).localeCompare(String(a.timeCreated))).slice(0, maxResults);
+  const images = await Promise.all(newest.map(async item => {
     const file = item.name.split('/').pop(), entry = byFile.get(file);
     return {
       name: item.name, created: item.timeCreated, size: parseInt(item.size),
@@ -319,18 +379,133 @@ async function listStorageImages(sa, maxResults = 60) {
       url: await generateSignedUrl(sa, bucket, item.name, 900),
     };
   }));
-  return { images, bucket };
+  return { images, bucket, total: items.length, keepDays: PHOTO_DAYS, lastCleanup: await kvGet('studylens:photo-cleanup') };
+}
+
+// Daily: photos past their time are removed, a few hundred per run.
+async function cleanOldPhotos(sa) {
+  const { bucket, items } = await listPhotos(sa);
+  if (!bucket) return { deleted: 0, remaining: 0 };
+  const cutoff = Date.now() - PHOTO_DAYS * 86_400_000;
+  const old = items.filter(i => new Date(i.timeCreated).getTime() < cutoff).map(i => i.name);
+  const deleted = await deletePhotos(sa, bucket, old.slice(0, 300));
+  const result = { at: Date.now(), deleted, remaining: Math.max(0, old.length - deleted) };
+  await kvCommand(['SET', 'studylens:photo-cleanup', JSON.stringify(result)]);
+  return result;
+}
+
+// ── Small Upstash helpers ────────────────────────────────────────
+async function kvCommand(command) {
+  const url = process.env.KV_REST_API_URL, token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(command) });
+    return (await r.json()).result ?? null;
+  } catch { return null; }
+}
+async function kvGet(key) {
+  const raw = await kvCommand(['GET', key]);
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+// ── AI health ────────────────────────────────────────────────────
+async function healthDays(count = 14) {
+  const url = process.env.KV_REST_API_URL, token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  const days = Array.from({ length: count }, (_, i) => new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+  const r = await fetch(`${url}/pipeline`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(days.map(d => ['HGETALL', `health:${d}`])),
+  });
+  const rows = await r.json();
+  return days.map((day, i) => {
+    const flat = rows[i]?.result || [], out = { day, requests: 0, ok: 0, cached: 0, failed: 0, limited: 0, slow: 0, ms: 0, models: {}, errors: {} };
+    for (let n = 0; n < flat.length; n += 2) {
+      const key = flat[n], value = Number(flat[n + 1]) || 0;
+      if (key.startsWith('model:')) out.models[key.slice(6)] = value;
+      else if (key.startsWith('err:')) out.errors[key.slice(4)] = value;
+      else out[key] = value;
+    }
+    return out;
+  });
+}
+
+// ── Student reports ──────────────────────────────────────────────
+const toFields = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) =>
+  [k, typeof v === 'number' ? { integerValue: String(Math.round(v)) } : { stringValue: String(v ?? '') }]));
+const reportTimes = new Map();
+function tooManyReports(uid) {
+  const now = Date.now(), recent = (reportTimes.get(uid) || []).filter(t => now - t < 3_600_000);
+  if (recent.length >= 10) return true;
+  reportTimes.set(uid, [...recent, now]);
+  return false;
+}
+async function saveReport(user, body) {
+  const reason = REPORT_REASONS.includes(body.reason) ? body.reason : 'other', id = `${user.localId}_${Date.now()}`;
+  await firestoreRequest(`reports/${encodeURIComponent(id)}`, 'PATCH', { fields: toFields({
+    uid: user.localId, email: user.email || '', name: user.displayName || '', ts: Date.now(), status: 'open', reason,
+    note: String(body.note || '').slice(0, 300), question: String(body.question || '').slice(0, 1500),
+    answer: String(body.answer || '').slice(0, 6000), subject: String(body.subject || '').slice(0, 80),
+    className: String(body.className || '').slice(0, 40), mode: String(body.mode || 'text').slice(0, 12),
+  }) });
+}
+
+// ── Delete everything one student has stored ─────────────────────
+async function deleteStudent(sa, uid) {
+  if (!/^[A-Za-z0-9_-]{6,128}$/.test(String(uid))) throw new Error('Invalid student.');
+  const token = await getFirebaseToken(sa);
+  const root = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const commit = async names => {
+    if (!names.length) return;
+    const r = await fetch(`${root}:batchWrite`, { method: 'POST', headers, body: JSON.stringify({ writes: names.map(name => ({ delete: name })) }) });
+    if (!r.ok) throw new Error(`Delete failed (${r.status})`);
+  };
+  let records = 0;
+  for (let round = 0; round < 40; round++) {
+    const r = await fetch(`${root}/users/${uid}:runQuery`, { method: 'POST', headers, body: JSON.stringify({ structuredQuery: {
+      from: [{ allDescendants: true }], select: { fields: [{ fieldPath: '__name__' }] }, limit: 400,
+    } }) });
+    if (!r.ok) throw new Error(`Could not read student data (${r.status})`);
+    const names = (await r.json()).filter(row => row.document).map(row => row.document.name);
+    if (!names.length) break;
+    await commit(names);
+    records += names.length;
+  }
+  const reports = await fetch(`${root}:runQuery`, { method: 'POST', headers, body: JSON.stringify({ structuredQuery: {
+    from: [{ collectionId: 'reports' }], select: { fields: [{ fieldPath: '__name__' }] }, limit: 400,
+    where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } },
+  } }) });
+  const reportNames = reports.ok ? (await reports.json()).filter(row => row.document).map(row => row.document.name) : [];
+  await commit(reportNames);
+  const { bucket, items } = await listPhotos(sa, `question-images/${uid}_`);
+  const photos = bucket ? await deletePhotos(sa, bucket, items.map(i => i.name)) : 0;
+  scanCache = null;
+  return { records, reports: reportNames.length, photos };
 }
 
 // ── Main Handler ──────────────────────────────────
 export default async function handler(req, res) {
+  // Vercel's daily schedule. It can only remove photos already past their time.
+  if (req.method === 'GET' && req.query?.cron === 'photos') {
+    try { return res.status(200).json(await cleanOldPhotos(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}'))); }
+    catch (e) { console.error('[Photo cleanup]', e); return res.status(500).json({ error: e.message }); }
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    if (req.body?.action === 'report') {
+      const user = await signedInUser(req);
+      if (!user) return res.status(401).json({ error: 'Please sign in to send a report.' });
+      if (tooManyReports(user.localId)) return res.status(429).json({ error: 'Too many reports. Please try again later.' });
+      await saveReport(user, req.body);
+      return res.status(200).json({ ok: true });
+    }
+
     const refused = await requireAdmin(req);
     if (refused) return res.status(refused.status).json({ error: refused.error });
 
-    const { action, path, fresh, limit = 50, offset = 0 } = req.body || {};
+    const { action, path, fresh, uid, id, status, limit = 50, offset = 0 } = req.body || {};
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
 
     switch (action) {
@@ -382,7 +557,7 @@ export default async function handler(req, res) {
         const e = parseDoc(await firestoreRequest(path.split('/').map(encodeURIComponent).join('/')));
         let imageUrl = null;
         const file = /^https:\/\/storage\.googleapis\.com\/([^/]+)\/(.+)$/.exec(e.imageStorageUrl || '');
-        if (file) { try { imageUrl = await generateSignedUrl(serviceAccount, file[1], decodeURIComponent(file[2]), 900); } catch (_) {} }
+        if (file && storageBuckets(serviceAccount).includes(file[1])) { try { imageUrl = await generateSignedUrl(serviceAccount, file[1], decodeURIComponent(file[2]), 900); } catch (_) {} }
         return res.status(200).json({ question: e.question || '', answer: e.answer || '', imageUrl });
       }
 
@@ -399,10 +574,11 @@ export default async function handler(req, res) {
             dailyCounts[day] = (dailyCounts[day] || 0) + 1;
           }
         }
-        let totalUsers = new Set(entries.map(e => e.uid)).size;
-        try { totalUsers = (await listAccounts()).length; } catch (_) {}
+        let totalUsers = new Set(entries.map(e => e.uid)).size, accounts = [];
+        try { accounts = await listAccounts(); totalUsers = accounts.length; } catch (_) {}
+        const growth = growthNumbers(entries, accounts);
         return res.status(200).json({
-          totalUsers, totalQuestions: entries.length, totalPhotoQ, totalTextQ, capped,
+          totalUsers, totalQuestions: entries.length, totalPhotoQ, totalTextQ, capped, growth,
           topSubjects: Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]).slice(0, 10),
           topClasses:  Object.entries(classCounts).sort((a, b) => b[1] - a[1]).slice(0, 10),
           recentDays:  Object.entries(dailyCounts).sort((a, b) => (a[0] > b[0] ? -1 : 1)).slice(0, 14),
@@ -415,6 +591,29 @@ export default async function handler(req, res) {
 
       case 'kv':
         return res.status(200).json({ kvState: await getKVState() });
+
+      case 'health':
+        return res.status(200).json({ days: await healthDays() });
+
+      case 'reports': {
+        const data = await firestoreRequest('reports?pageSize=300');
+        const reports = (data.documents || []).map(doc => ({ id: doc.name.split('/').pop(), ...parseDoc(doc) }))
+          .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        return res.status(200).json({ reports });
+      }
+
+      case 'reportSet':
+        await firestoreRequest(`reports/${encodeURIComponent(id)}?updateMask.fieldPaths=status`, 'PATCH', {
+          fields: toFields({ status: status === 'resolved' ? 'resolved' : 'open' }),
+        });
+        return res.status(200).json({ ok: true });
+
+      case 'reportDelete':
+        await firestoreRequest(`reports/${encodeURIComponent(id)}`, 'DELETE');
+        return res.status(200).json({ ok: true });
+
+      case 'deleteStudent':
+        return res.status(200).json(await deleteStudent(serviceAccount, uid));
 
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });

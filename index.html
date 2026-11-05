@@ -2012,6 +2012,12 @@ body.sl-lock { overflow: hidden; }
   .sl-dlg, .sl-dlg-wrap, .login-check, .login-gate { transition-duration: .01s; }
   .sl-dlg-tick circle, .sl-dlg-tick path { animation-duration: .01s; animation-delay: 0s; }
 }
+.sl-report-list { display: grid; gap: .4rem; margin-top: .9rem; }
+.sl-report-list button { min-height: 44px; padding: .45rem .8rem; text-align: left; border-radius: 11px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font: 600 .86rem var(--font-body); cursor: pointer; }
+.sl-report-list button[aria-checked="true"] { border-color: var(--accent); background: rgba(79,142,247,.13); color: var(--accent); }
+.sl-report-note { width: 100%; box-sizing: border-box; margin-top: .55rem; padding: .6rem .75rem; resize: none; border-radius: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 400 .86rem var(--font-body); }
+.sl-report-note:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ans-action-btn.report-btn:hover, .ans-action-btn.report-btn:focus { border-color: var(--danger); color: var(--danger); background: rgba(247,79,79,.08); }
 </style>
 <body>
 <script src="/icons.js"></script>
@@ -2410,6 +2416,10 @@ body.sl-lock { overflow: hidden; }
         <span class="ans-action-icon" id="bookmarkIcon">☆</span>
         <span id="bookmarkLabel">Bookmark</span>
       </button>
+      <button class="ans-action-btn report-btn" id="reportBtn" onclick="openReport()">
+        <span class="ans-action-icon">🚩</span>
+        <span id="reportLabel">Report</span>
+      </button>
       <button class="ans-action-btn simpler-btn" id="simplerBtn" onclick="simplifyAnswer()">
         <span class="ans-action-icon">🐢</span>
         <span id="simplerLabel">Simpler</span>
@@ -2518,6 +2528,8 @@ function slSetTheme(mode) { slSet('studylens_theme', mode); slApplyTheme(mode); 
 // Footer
 function renderFooter() {
   const x = slT(), el = document.getElementById('footerNote');
+  const label = document.getElementById('reportLabel');
+  if (label) label.textContent = slR().label;
   if (!el) return;
   const links = ['about', 'settings', 'privacy', 'terms', 'licence'].map(p => `<a href="#${p}" data-sl="${p}">${slEsc(x[p])}</a>`).join('');
   el.innerHTML = `<div class="sf-brand"><img src="/studylens-logo.svg" alt="" width="34" height="34"/><div><b>StudyLens AI</b>${slEsc(x.tagline)}</div></div>
@@ -2608,7 +2620,7 @@ function slPrivacy() {
       <li>To apply fair-use limits, prevent misuse and improve answer quality.</li></ul>
     <p>We do not sell your personal information.</p>
     <h3>Review of questions and photos</h3>
-    <p>Questions are stored with your account. Photos you add are also stored, and the app's administrator can review questions and photos to check quality and prevent misuse. Please avoid sharing photos that show faces, addresses or other personal details.</p>
+    <p>Questions are stored with your account. Photos you add are also stored, and the app's administrator can review questions and photos to check quality and prevent misuse. Photos are deleted automatically after 30 days. Please avoid sharing photos that show faces, addresses or other personal details.</p>
     <h3>Services we rely on</h3><ul>
       <li><b>Google:</b> sign-in, data storage (Firebase), AI answers (Gemini) and read-aloud voice.</li>
       <li><b>Groq:</b> AI answers.</li>
@@ -2619,7 +2631,9 @@ function slPrivacy() {
     <p>StudyLens AI is made for school students. Younger children should use it with the permission and help of a parent, guardian or teacher.</p>
     <h3>Your choices</h3><ul>
       <li>Clear saved answers from Settings. This removes them from the active profile.</li>
-      <li>Photos already stored for review are not removed by clearing saved answers.</li>
+      <li>Photos already stored for review are not removed by clearing saved answers. They are deleted automatically after 30 days.</li>
+      <li>If you report an answer, the question, answer and your note are saved with your account details so we can check it.</li>
+      <li>The administrator can delete a student's stored history, reports and photos.</li>
       <li>Sign out at any time from the menu.</li></ul>
     <h3>Changes</h3>
     <p>We may update this policy as the app changes. The date above shows the latest version.</p>`;
@@ -2730,6 +2744,7 @@ var SL_AUTH = {"en":{"opening":"Opening Google sign-in…","openingBody":"Choose
 var slDlgState = { open: false, pushed: false, onBack: null, timer: 0, restore: null };
 function slA() { return SL_AUTH[typeof currentLang === 'string' ? currentLang : 'en'] || SL_AUTH.en; }
 function slMark(kind, user) {
+  if (kind === 'none') return '';
   if (kind === 'busy') return '<div class="sl-dlg-mark"><div class="sl-spin"></div></div>';
   if (kind === 'done') return '<div class="sl-dlg-mark"><svg class="sl-dlg-tick" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="24"/><path d="m19 31 8 8 15-17"/></svg></div>';
   if (kind === 'bad') return '<div class="sl-dlg-mark bad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></div>';
@@ -2752,6 +2767,7 @@ function slDialog(o) {
     `<h3 id="slDlgTitle">${slEsc(o.title)}</h3>` +
     (o.body ? `<p id="slDlgBody">${slEsc(o.body)}</p>` : '') +
     (o.who ? `<p class="sl-dlg-who">${slEsc(o.who)}</p>` : '') +
+    (o.html || '') +
     `<div class="sl-dlg-acts">${(o.actions || []).map((a, i) => `<button type="button" class="${a.style || ''}" data-i="${i}">${slEsc(a.label)}</button>`).join('')}</div>`;
   wrap.querySelectorAll('.sl-dlg-acts button').forEach(b => { b.onclick = () => o.actions[+b.dataset.i].run(); });
   wrap.classList.add('open');
@@ -2858,6 +2874,54 @@ function handleAuthClick() {
     { label: a.cancel, run: close },
     { label: slT().signOut, style: 'danger', run: slSignOut }
   ] });
+}
+
+// Every question carries the student's sign-in, so the server knows who is asking
+async function authedFetch(url, options = {}) {
+  let token = null;
+  try { token = await slUser()?.getIdToken(); } catch (_) {}
+  return fetch(url, { ...options, headers: { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+}
+
+// Report a wrong answer
+var SL_REPORT = {"en":{"label":"Report","title":"Report this answer","body":"Tell us what went wrong so we can fix it.","reasons":[["wrong","The answer is wrong"],["diagram","The diagram is wrong"],["format","It doesn't display properly"],["other","Something else"]],"note":"Add a note (optional)","send":"Send report","sending":"Sending…","thanks":"Thank you","thanksBody":"We'll check this answer.","sent":"You've already reported this answer","failed":"Couldn't send. Please try again."},"bn":{"label":"রিপোর্ট","title":"এই উত্তরটি রিপোর্ট করুন","body":"কী ভুল হয়েছে জানান, আমরা ঠিক করে দেব।","reasons":[["wrong","উত্তরটি ভুল"],["diagram","চিত্রটি ভুল"],["format","ঠিকমতো দেখা যাচ্ছে না"],["other","অন্য কিছু"]],"note":"মন্তব্য লিখুন (ঐচ্ছিক)","send":"রিপোর্ট পাঠান","sending":"পাঠানো হচ্ছে…","thanks":"ধন্যবাদ","thanksBody":"আমরা এই উত্তরটি পরীক্ষা করব।","sent":"আপনি এই উত্তরটি আগেই রিপোর্ট করেছেন","failed":"পাঠানো যায়নি। আবার চেষ্টা করুন।"},"hi":{"label":"रिपोर्ट","title":"इस उत्तर की रिपोर्ट करें","body":"बताएँ क्या गलत है, ताकि हम उसे ठीक कर सकें।","reasons":[["wrong","उत्तर गलत है"],["diagram","चित्र गलत है"],["format","ठीक से दिखाई नहीं दे रहा"],["other","कुछ और"]],"note":"टिप्पणी जोड़ें (वैकल्पिक)","send":"रिपोर्ट भेजें","sending":"भेजा जा रहा है…","thanks":"धन्यवाद","thanksBody":"हम इस उत्तर की जाँच करेंगे।","sent":"आप इस उत्तर की रिपोर्ट पहले ही कर चुके हैं","failed":"भेजा नहीं जा सका। फिर से कोशिश करें।"},"as":{"label":"ৰিপ'ৰ্ট","title":"এই উত্তৰটো ৰিপ'ৰ্ট কৰক","body":"কি ভুল হৈছে জনাওক, আমি শুধৰাই দিম।","reasons":[["wrong","উত্তৰটো ভুল"],["diagram","চিত্ৰটো ভুল"],["format","ভালদৰে দেখা পোৱা নাই"],["other","আন কিবা"]],"note":"মন্তব্য লিখক (ঐচ্ছিক)","send":"ৰিপ'ৰ্ট পঠিয়াওক","sending":"পঠিওৱা হৈছে…","thanks":"ধন্যবাদ","thanksBody":"আমি এই উত্তৰটো পৰীক্ষা কৰিম।","sent":"আপুনি এই উত্তৰটো আগতেই ৰিপ'ৰ্ট কৰিছে","failed":"পঠিয়াব পৰা নগ'ল। পুনৰ চেষ্টা কৰক।"}};
+var slReported = '';
+function slR() { return SL_REPORT[typeof currentLang === 'string' ? currentLang : 'en'] || SL_REPORT.en; }
+function openReport() {
+  const r = slR(), a = slA();
+  if (!lastAnswerText) return;
+  if (slReported === lastAnswerText) return showProfileToast(r.sent);
+  let reason = 'wrong';
+  const close = () => slDialogClose();
+  const send = async () => {
+    const note = (document.getElementById('slReportNote')?.value || '').trim();
+    const payload = lastPayload || {};
+    slDialog({ mark: 'busy', title: r.sending });
+    slDlgState.onBack = null;
+    try {
+      const res = await authedFetch('/api/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'report', reason, note, question: payload.question || '', answer: lastAnswerText, subject: payload.subject || '', className: payload.className || '', mode: payload.mode || 'text' }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || r.failed);
+      slReported = lastAnswerText;
+      slDialog({ mark: 'done', title: r.thanks, body: r.thanksBody, auto: 1500, onBack: close });
+    } catch (e) {
+      slDialog({ mark: 'bad', title: r.title, body: e.message || r.failed, onBack: close, actions: [{ label: a.close, run: close }] });
+    }
+  };
+  slDialog({
+    mark: 'none', title: r.title, body: r.body, onBack: close,
+    html: `<div class="sl-report-list" role="radiogroup">${r.reasons.map(([v, label], i) => `<button type="button" role="radio" data-reason="${v}" aria-checked="${i === 0}">${slEsc(label)}</button>`).join('')}</div>
+      <textarea id="slReportNote" class="sl-report-note" rows="2" maxlength="300" placeholder="${slEsc(r.note)}"></textarea>`,
+    actions: [{ label: a.cancel, run: close }, { label: r.send, style: 'primary', run: send }],
+  });
+  document.querySelectorAll('.sl-report-list button').forEach(b => {
+    b.onclick = () => {
+      reason = b.dataset.reason;
+      document.querySelectorAll('.sl-report-list button').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+    };
+  });
 }
 
 // While the saved session is being checked, a splash replaces the login card
@@ -3272,6 +3336,8 @@ async function saveToHistory(payload, answerText, answerHtml, imageDataUrl) {
     bookmarked: false,
     payload: { ...payload, imageBase64: undefined }
   };
+  if (payload.mode === 'photo' && window._photoUrl) entry.imageStorageUrl = window._photoUrl;
+  window._photoUrl = null;
   sessionHistory.push(entry);
   // Set the current item id for bookmark button
   setBookmarkBtnState(id);
@@ -4525,10 +4591,10 @@ async function retranslate(lang) {
   startThinkingMessages();
   rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  const payload = { ...lastPayload, lang, uid: currentUser ? currentUser.uid : null };
+  const payload = { ...lastPayload, lang };
 
   try {
-    const res  = await fetch('/api/ask', {
+    const res  = await authedFetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -4667,7 +4733,6 @@ async function askQuestion() {
     subject: selSubj ? selSubj.subject : '',
     subjectType: getSubjectType(selSubj),
     chapter: selChapter || '',
-    uid: currentUser ? currentUser.uid : null,
   };
 
   if (currentMode === 'text') {
@@ -4719,7 +4784,7 @@ async function askQuestion() {
     // in real time instead of waiting for the full response.
     // Photo mode stays on the regular JSON path (image upload needs it).
     if (payload.mode === 'text') {
-      const res = await fetch('/api/ask?stream=1', {
+      const res = await authedFetch('/api/ask?stream=1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -4745,7 +4810,7 @@ async function askQuestion() {
 
     } else {
       // ── Photo mode: keep the original JSON path ──────────────────────────────
-      const res = await fetch('/api/ask', {
+      const res = await authedFetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -4758,6 +4823,7 @@ async function askQuestion() {
       if (!res.ok || data.error) {
         throw new Error(data.error || `Server error (${res.status})`);
       }
+      window._photoUrl = data.imageStorageUrl || null;
 
       stopThinkingMessages();
       hideThinking();
@@ -5265,7 +5331,6 @@ async function sendFollowup() {
     history: updatedHistory,                           // full conversation so far
     imageBase64: wasPhoto ? lastPayload.imageBase64 : undefined,
     imageMime:   wasPhoto ? lastPayload.imageMime   : undefined,
-    uid: currentUser ? currentUser.uid : null,
   };
 
   // Close follow-up input, reset
@@ -5292,7 +5357,7 @@ async function sendFollowup() {
   try {
     // Text follow-ups use SSE streaming; photo follow-ups use the JSON path.
     if (payload.mode === 'text') {
-      const res = await fetch('/api/ask?stream=1', {
+      const res = await authedFetch('/api/ask?stream=1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -5319,7 +5384,7 @@ async function sendFollowup() {
 
     } else {
       // Photo follow-up — keep the existing JSON path
-      const res = await fetch('/api/ask', {
+      const res = await authedFetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -5396,11 +5461,10 @@ async function simplifyAnswer() {
     ...lastPayload,
     lang: currentLang,
     simplify: true,
-    uid: currentUser ? currentUser.uid : null,
   };
 
   try {
-    const res  = await fetch('/api/ask', {
+    const res  = await authedFetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -5459,7 +5523,7 @@ async function generateSuggestions() {
   requestAnimationFrame(() => setTimeout(() => wrap.classList.add('visible'), 120));
 
   try {
-    const res = await fetch('/api/ask', {
+    const res = await authedFetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -5470,7 +5534,6 @@ async function generateSuggestions() {
         subject:     lastPayload.subject     || '',
         subjectType: lastPayload.subjectType || 'general',
         lang:        currentLang,
-        uid:         currentUser ? currentUser.uid : null,
       }),
     });
 
@@ -6193,7 +6256,7 @@ CRITICAL RULES:
 - Explanation must clearly state the reason, not just repeat the answer`;
 
   try {
-    const res  = await fetch('/api/ask', {
+    const res  = await authedFetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -6205,7 +6268,6 @@ CRITICAL RULES:
         subjectType: selSubj ? (lastPayload && lastPayload.subjectType) || 'general' : 'general',
         board: selBoard ? selBoard.name : '',
         stream: selStream ? selStream.name : '',
-        uid: currentUser ? currentUser.uid : null,
       }),
     });
     const data = await res.json();
