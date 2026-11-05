@@ -15,7 +15,30 @@
   root.setAttribute('data-motion', read('studylens_motion', 'on'));
 })();
 </script>
-<title>StudyLens AI — AI Homework Helper</title>
+<title>StudyLens AI: Free AI Homework Helper for SEBA, AHSEC, CBSE and ICSE</title>
+<meta name="description" content="Free AI homework help for students from KG to Class 12 in Assam. Get clear, step-by-step answers for maths, science, chemistry and every subject, in English, Bengali, Hindi and Assamese."/>
+<link rel="canonical" href="https://studylens-ai-gamma.vercel.app/"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="StudyLens"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="StudyLens AI"/>
+<meta property="og:title" content="StudyLens AI: Free AI Homework Helper"/>
+<meta property="og:description" content="Clear, step-by-step answers for every subject, for SEBA, AHSEC, CBSE and ICSE students."/>
+<meta property="og:url" content="https://studylens-ai-gamma.vercel.app/"/>
+<meta property="og:image" content="https://studylens-ai-gamma.vercel.app/og-image.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="StudyLens AI: clear answers for every subject"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="StudyLens AI: Free AI Homework Helper"/>
+<meta name="twitter:description" content="Clear, step-by-step answers for every subject, for SEBA, AHSEC, CBSE and ICSE students."/>
+<meta name="twitter:image" content="https://studylens-ai-gamma.vercel.app/og-image.png"/>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"StudyLens AI","url":"https://studylens-ai-gamma.vercel.app/","applicationCategory":"EducationalApplication","operatingSystem":"Any","inLanguage":["en","bn","hi","as"],"description":"Free AI homework help for students from KG to Class 12 in Assam, covering SEBA, AHSEC, CBSE and ICSE.","offers":{"@type":"Offer","price":"0","priceCurrency":"INR"}}
+</script>
 <link rel="icon" type="image/svg+xml" href="/studylens-logo.svg"/>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
@@ -2018,6 +2041,30 @@ body.sl-lock { overflow: hidden; }
 .sl-report-note { width: 100%; box-sizing: border-box; margin-top: .55rem; padding: .6rem .75rem; resize: none; border-radius: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 400 .86rem var(--font-body); }
 .sl-report-note:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ans-action-btn.report-btn:hover, .ans-action-btn.report-btn:focus { border-color: var(--danger); color: var(--danger); background: rgba(247,79,79,.08); }
+.sl-install-bar { display: flex; align-items: center; gap: .55rem; margin: 0 0 1rem; padding: .6rem .7rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); font-size: .8rem; line-height: 1.35; color: var(--text); }
+.sl-install-bar[hidden] { display: none; }
+.sl-install-bar span { flex: 1; min-width: 0; }
+.sl-bar-go { flex: none; min-height: 36px; padding: .3rem .75rem; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: 700 .8rem var(--font-body); cursor: pointer; }
+.sl-bar-x { flex: none; width: 32px; height: 32px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.ans-action-btn.share-btn:hover, .ans-action-btn.share-btn:focus { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,.08); }
+.share-preview { display: block; width: 100%; max-height: 52vh; object-fit: contain; margin-top: .75rem; border-radius: 12px; border: 1px solid var(--border); background: #0f1117; }
+.share-card {
+  --bg: #0f1117; --surface: #181c27; --surface2: #1f2435; --border: #2a2f42; --accent: #4f8ef7; --accent2: #f7c948; --green: #3ecf8e; --text: #eef0f8; --muted: #9aa2bf;
+  --violet: #a78bfa; --rose: #f78f8f; --cyan: #06b6d4; --text-scale: 1;
+  position: fixed; left: -2000px; top: 0; z-index: -1; width: 540px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 14px;
+  background: linear-gradient(160deg, #141a2e, #0f1117 55%); color: var(--text); font-family: var(--font-body);
+}
+.share-top { display: flex; align-items: center; gap: 12px; }
+.share-top img { width: 46px; height: 46px; border-radius: 12px; }
+.share-top b { display: block; font: 800 1.25rem var(--font-head); color: #fff; line-height: 1.2; }
+.share-top span { display: block; font-size: .8rem; color: var(--muted); }
+.share-chip { align-self: flex-start; padding: .2rem .7rem; border-radius: 999px; background: rgba(79,142,247,.15); color: #8db8ff; font-size: .78rem; font-weight: 700; }
+.share-q { font: 700 1.08rem/1.4 var(--font-head); color: #fff; }
+.share-a { position: relative; max-height: 560px; overflow: hidden; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
+.share-a .result-body { opacity: 1 !important; transform: none !important; padding: 1rem; }
+.share-a::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(transparent, var(--surface)); }
+.share-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: .75rem .9rem; border-radius: 12px; background: linear-gradient(135deg, #3f6fe8, #7b3ff0); color: #fff; font-size: .82rem; }
+.share-foot span { flex: none; font-weight: 700; }
 </style>
 <body>
 <script src="/icons.js"></script>
@@ -2100,6 +2147,12 @@ body.sl-lock { overflow: hidden; }
       <span class="geo-badge-dot"></span>
       <span id="geo-badge-text">Made for Assam · SEBA · AHSEC · CBSE · ICSE</span>
     </div>
+  </div>
+
+  <div class="sl-install-bar" id="slInstallBar" hidden>
+    <span></span>
+    <button class="sl-bar-go" onclick="slInstall()"></button>
+    <button class="sl-bar-x" onclick="slInstallHide()">✕</button>
   </div>
 
   <!-- ── FAMILY PROFILES BAR ── -->
@@ -2416,6 +2469,10 @@ body.sl-lock { overflow: hidden; }
         <span class="ans-action-icon" id="bookmarkIcon">☆</span>
         <span id="bookmarkLabel">Bookmark</span>
       </button>
+      <button class="ans-action-btn share-btn" id="shareBtn" onclick="shareAnswer()">
+        <span class="ans-action-icon">📤</span>
+        <span id="shareLabel">Share</span>
+      </button>
       <button class="ans-action-btn report-btn" id="reportBtn" onclick="openReport()">
         <span class="ans-action-icon">🚩</span>
         <span id="reportLabel">Report</span>
@@ -2530,6 +2587,9 @@ function renderFooter() {
   const x = slT(), el = document.getElementById('footerNote');
   const label = document.getElementById('reportLabel');
   if (label) label.textContent = slR().label;
+  const shareLabel = document.getElementById('shareLabel');
+  if (shareLabel) shareLabel.textContent = slG().share;
+  slInstallBar();
   if (!el) return;
   const links = ['about', 'settings', 'privacy', 'terms', 'licence'].map(p => `<a href="#${p}" data-sl="${p}">${slEsc(x[p])}</a>`).join('');
   el.innerHTML = `<div class="sf-brand"><img src="/studylens-logo.svg" alt="" width="34" height="34"/><div><b>StudyLens AI</b>${slEsc(x.tagline)}</div></div>
@@ -2555,6 +2615,7 @@ function renderMenu() {
       <div class="sl-group">${slEsc(x.app)}</div>
       ${item('page', 'settings', 'settings', x.settings)}
       <button class="sl-item" role="switch" aria-checked="${dark}" data-act="dark">${slIcon('moon')}<span>${slEsc(x.darkMode)}</span><span class="sl-switch"></span></button>
+      ${slCanInstall() ? item('install', '', 'home', slG().install) : ''}
       ${item('share', '', 'share', x.share)}
       ${item('page', 'about', 'about', x.about)}
       <div class="sl-group">${slEsc(x.legal)}</div>
@@ -2712,6 +2773,7 @@ function slAction(act, val) {
     case 'hist': return slAfterClose(() => slOpenHist(val));
     case 'page': return slOpen(val);
     case 'share': return slAfterClose(slShare);
+    case 'install': return slAfterClose(slInstall);
     case 'signout': return slAfterClose(handleAuthClick);
     case 'dark': slSetTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); return renderMenu();
     case 'theme': slSetTheme(val); return slRenderPage('settings');
@@ -2923,6 +2985,119 @@ function openReport() {
   });
 }
 
+// ── Install, offline and answer sharing ──────────────────────────
+var SL_GROW = {"en":{"install":"Install app","installBody":"Add StudyLens to your phone for quick access and saved answers offline.","installIos":"Tap the Share button in Safari, then choose Add to Home Screen.","offline":"You're offline. Your saved answers still work.","share":"Share","making":"Making your image…","ready":"Ready to share","save":"Save image","failed":"Couldn't make the image","failedBody":"You can still share the StudyLens link.","shareLink":"Share link","shareText":"Solved with StudyLens AI, free homework help:","readMore":"Get free answers, step by step","tagline":"Free AI homework help"},"bn":{"install":"অ্যাপ ইনস্টল করুন","installBody":"দ্রুত ব্যবহার ও অফলাইনে সংরক্ষিত উত্তর পেতে StudyLens ফোনে যোগ করুন।","installIos":"Safari-র Share বোতামে ট্যাপ করে Add to Home Screen বেছে নিন।","offline":"আপনি অফলাইনে আছেন। সংরক্ষিত উত্তরগুলি দেখা যাবে।","share":"শেয়ার","making":"ছবি তৈরি হচ্ছে…","ready":"শেয়ারের জন্য প্রস্তুত","save":"ছবি সংরক্ষণ করুন","failed":"ছবি তৈরি করা যায়নি","failedBody":"আপনি StudyLens-এর লিংক শেয়ার করতে পারেন।","shareLink":"লিংক শেয়ার করুন","shareText":"StudyLens AI দিয়ে সমাধান করা হয়েছে, বিনামূল্যে হোমওয়ার্ক সহায়তা:","readMore":"ধাপে ধাপে বিনামূল্যে উত্তর পান","tagline":"বিনামূল্যে AI হোমওয়ার্ক সহায়তা"},"hi":{"install":"ऐप इंस्टॉल करें","installBody":"तेज़ पहुँच और ऑफ़लाइन सहेजे गए उत्तरों के लिए StudyLens को फ़ोन में जोड़ें।","installIos":"Safari में Share बटन दबाएँ, फिर Add to Home Screen चुनें।","offline":"आप ऑफ़लाइन हैं। सहेजे गए उत्तर फिर भी देखे जा सकते हैं।","share":"साझा करें","making":"चित्र बन रहा है…","ready":"साझा करने के लिए तैयार","save":"चित्र सहेजें","failed":"चित्र नहीं बन सका","failedBody":"आप फिर भी StudyLens का लिंक साझा कर सकते हैं।","shareLink":"लिंक साझा करें","shareText":"StudyLens AI से हल किया, मुफ़्त होमवर्क मदद:","readMore":"चरण-दर-चरण मुफ़्त उत्तर पाएँ","tagline":"मुफ़्त AI होमवर्क मदद"},"as":{"install":"এপ ইনষ্টল কৰক","installBody":"সোনকালে ব্যৱহাৰ আৰু অফলাইনত সংৰক্ষিত উত্তৰৰ বাবে StudyLens ফোনত যোগ কৰক।","installIos":"Safariৰ Share বুটামত টিপি Add to Home Screen বাছনি কৰক।","offline":"আপুনি অফলাইনত আছে। সংৰক্ষিত উত্তৰবোৰ চাব পাৰিব।","share":"শ্বেয়াৰ","making":"ছবি প্ৰস্তুত হৈছে…","ready":"শ্বেয়াৰৰ বাবে সাজু","save":"ছবি সংৰক্ষণ কৰক","failed":"ছবি প্ৰস্তুত কৰিব পৰা নগ'ল","failedBody":"আপুনি StudyLensৰ লিংক শ্বেয়াৰ কৰিব পাৰে।","shareLink":"লিংক শ্বেয়াৰ কৰক","shareText":"StudyLens AIৰে সমাধান কৰা হৈছে, বিনামূলীয়া হোমৱৰ্ক সহায়:","readMore":"খোজে খোজে বিনামূলীয়া উত্তৰ পাওক","tagline":"বিনামূলীয়া AI হোমৱৰ্ক সহায়"}};
+function slG() { return SL_GROW[typeof currentLang === 'string' ? currentLang : 'en'] || SL_GROW.en; }
+var slInstallEvent = null;
+function slInstalled() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function slIsIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function slCanInstall() { return !slInstalled() && (!!slInstallEvent || slIsIos()); }
+function slInstallBar() {
+  const bar = document.getElementById('slInstallBar'), g = slG();
+  if (!bar) return;
+  const show = slCanInstall() && !!slUser() && slGet('studylens_install_bar', 'show') === 'show';
+  bar.hidden = !show;
+  if (show) {
+    bar.querySelector('span').textContent = g.installBody;
+    bar.querySelector('.sl-bar-go').textContent = g.install;
+    bar.querySelector('.sl-bar-x').setAttribute('aria-label', slA().close);
+  }
+}
+function slInstallHide() { slSet('studylens_install_bar', 'hidden'); slInstallBar(); }
+async function slInstall() {
+  const g = slG(), close = () => slDialogClose();
+  if (slInstallEvent) {
+    const ask = slInstallEvent;
+    slInstallEvent = null;
+    ask.prompt();
+    await ask.userChoice.catch(() => {});
+    return slInstallBar();
+  }
+  slDialog({ mark: 'info', title: g.install, body: g.installIos, onBack: close, actions: [{ label: slA().close, run: close }] });
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); slInstallEvent = e; slInstallBar(); });
+window.addEventListener('appinstalled', () => { slInstallEvent = null; slInstallBar(); });
+window.addEventListener('offline', () => { try { showProfileToast(slG().offline); } catch (_) {} });
+window.addEventListener('load', () => {
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('[App] Offline support unavailable:', e.message));
+  }
+});
+
+// A branded picture of the answer: the real rendered maths and drawings, cut to fit.
+var slShareLib = null;
+function slLoadShareLib() {
+  if (window.htmlToImage) return Promise.resolve();
+  if (!slShareLib) slShareLib = new Promise((ok, no) => {
+    const tag = document.createElement('script');
+    tag.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+    tag.onload = ok;
+    tag.onerror = () => { slShareLib = null; no(new Error('library')); };
+    document.head.appendChild(tag);
+  });
+  return slShareLib;
+}
+function slShareCard() {
+  const g = slG(), payload = lastPayload || {}, source = document.getElementById('resultBody');
+  const card = document.createElement('div');
+  card.className = 'share-card';
+  card.innerHTML = `<div class="share-top"><img src="/studylens-logo.svg" alt="" width="46" height="46"/><div><b>StudyLens AI</b><span>${slEsc(g.tagline)}</span></div></div>
+    ${payload.subject ? `<div class="share-chip">${slEsc(payload.subject)}${payload.className ? ` · ${slEsc(payload.className)}` : ''}</div>` : ''}
+    ${payload.question ? `<div class="share-q">${slEsc(String(payload.question).slice(0, 200))}</div>` : ''}
+    <div class="share-a"><div class="result-body"></div></div>
+    <div class="share-foot"><b>${slEsc(g.readMore)}</b><span>${slEsc(location.host)}</span></div>`;
+  const body = card.querySelector('.result-body');
+  body.append(...[...source.cloneNode(true).childNodes]);
+  body.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  document.body.appendChild(card);
+  return card;
+}
+async function slShareImage(card) {
+  await slLoadShareLib();
+  await document.fonts?.ready;
+  const blob = await htmlToImage.toBlob(card, { pixelRatio: 2, cacheBust: false, backgroundColor: '#0f1117' });
+  if (!blob) throw new Error('image');
+  return blob;
+}
+async function shareAnswer() {
+  if (!lastAnswerText) return;
+  const g = slG(), a = slA(), close = () => slDialogClose();
+  const link = location.origin, words = `${g.shareText} ${link}`;
+  const textOnly = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: 'StudyLens AI', text: words, url: link });
+      else { await navigator.clipboard.writeText(link); showProfileToast(slT().copied); }
+    } catch (_) {}
+  };
+  slDialog({ mark: 'busy', title: g.making });
+  slDlgState.onBack = null;
+  let card = null;
+  try {
+    card = slShareCard();
+    const blob = await slShareImage(card), file = new File([blob], 'studylens-answer.png', { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+    const save = () => {
+      const tag = document.createElement('a');
+      tag.href = url; tag.download = file.name; tag.click();
+      close();
+    };
+    const send = async () => {
+      try { await navigator.share({ files: [file], text: words }); close(); }
+      catch (e) { if (e.name !== 'AbortError') save(); }
+    };
+    const canSend = navigator.canShare && navigator.canShare({ files: [file] });
+    slDialog({ mark: 'none', title: g.ready, onBack: close,
+      html: `<img class="share-preview" src="${url}" alt="${slEsc(g.ready)}"/>`,
+      actions: canSend ? [{ label: g.save, run: save }, { label: g.share, style: 'primary', run: send }] : [{ label: a.close, run: close }, { label: g.save, style: 'primary', run: save }],
+    });
+  } catch (e) {
+    console.warn('[Share] image failed:', e.message);
+    slDialog({ mark: 'bad', title: g.failed, body: g.failedBody, onBack: close, actions: [{ label: a.close, run: close }, { label: g.shareLink, style: 'primary', run: () => { close(); textOnly(); } }] });
+  } finally {
+    card?.remove();
+  }
+}
+
 // While the saved session is being checked, a splash replaces the login card
 function slAuthChecked() { document.getElementById('loginCheck')?.classList.add('done'); }
 setTimeout(slAuthChecked, 6000);
@@ -3006,7 +3181,7 @@ try {
       const q = query(_histCol(uid, profileId), orderBy('ts', 'asc'));
       const snap = await getDocs(q);
       return snap.docs.map(d => d.data());
-    } catch(e) { console.warn('[DB] loadHistory error:', e); return []; }
+    } catch(e) { console.warn('[DB] loadHistory error:', e); return null; }
   }
   async function saveHistoryEntryToFirestore(uid, profileId, entry) {
     try {
@@ -3133,6 +3308,7 @@ function initFirebaseAuth() {
   FB.onUserChanged(async (user) => {
   currentUser = user;
   slAuthChecked();
+  slInstallBar();
   const btn    = document.getElementById('authBtn');
   const avatar = document.getElementById('authAvatar');
   const name   = document.getElementById('authName');
@@ -3150,8 +3326,11 @@ function initFirebaseAuth() {
     btn.title         = 'Account and sign out';
 
     // Load cloud history + profiles (replaces localStorage)
-    sessionHistory  = await FB.loadHistoryFromFirestore(user.uid, activeProfileId);
-    familyProfiles  = await FB.loadProfilesFromFirestore(user.uid);
+    // Offline, or if the cloud can't be read, the copy on this device stays in place
+    const cloudHistory = navigator.onLine ? await FB.loadHistoryFromFirestore(user.uid, activeProfileId) : null;
+    if (cloudHistory) sessionHistory = cloudHistory; else loadPersistedHistory();
+    const cloudProfiles = navigator.onLine ? await FB.loadProfilesFromFirestore(user.uid) : [];
+    if (cloudProfiles.length || navigator.onLine) familyProfiles = cloudProfiles;
 
     // FIX Bug 7: Track highest seqNum seen from Firestore so new questions
     // always continue the correct sequence even if the cloud load returns
@@ -3162,7 +3341,7 @@ function initFirebaseAuth() {
     }
 
     // ── Load bookmarks from Firestore and re-sync ──
-    const bkmData = await FB.loadBookmarksFromFirestore(user.uid, activeProfileId);
+    const bkmData = navigator.onLine ? await FB.loadBookmarksFromFirestore(user.uid, activeProfileId) : null;
     if (bkmData && Array.isArray(bkmData.ids)) {
       bookmarkedIds = new Set(bkmData.ids);
       if (Array.isArray(bkmData.folders) && bkmData.folders.length > 0) {
@@ -6926,7 +7105,8 @@ function loadProfile(id) {
 // refreshes the UI once the data arrives.
 async function _loadProfileData(uid, profileId) {
   try {
-    sessionHistory = await FB.loadHistoryFromFirestore(uid, profileId);
+    const cloudHistory = navigator.onLine ? await FB.loadHistoryFromFirestore(uid, profileId) : null;
+    if (cloudHistory) sessionHistory = cloudHistory; else { sessionHistory = []; loadPersistedHistory(); }
     if (sessionHistory.length > 0) {
       const maxSeen = Math.max(...sessionHistory.map(e => e.seqNum || 0));
       if (maxSeen > 0) window._maxCloudSeqNum = maxSeen;
