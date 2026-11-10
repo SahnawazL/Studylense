@@ -37,10 +37,38 @@ const VOICE_MAP = {
 };
 
 // ── CORS headers ──────────────────────────────────────────────────────────────
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin',  '*');
+// Only StudyLens's own pages may call this from a browser (same-site calls need no header)
+function cors(res, req) {
+  const origin = String(req?.headers?.origin || '');
+  if (/^https:\/\/studylens[a-z0-9-]*\.vercel\.app$/i.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+// A few read-alouds a minute per visitor (protects the free voice quota)
+const recent = new Map();
+function tooMany(ip) {
+  const now = Date.now(), rec = recent.get(ip) || { n: 0, t: now };
+  if (recent.size > 5000) recent.clear();
+  if (now - rec.t > 60_000) { recent.set(ip, { n: 1, t: now }); return false; }
+  rec.n++; recent.set(ip, rec);
+  return rec.n > 10;
+}
+
+// Word timings: Google returns them only for <mark/> tags in SSML, and one
+// request takes at most 5,000 bytes, so long answers go in a few parts.
+const xmlEsc = w => w.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+function ssmlParts(words, maxBytes = 4700, maxParts = 6) {
+  const parts = []; let cur = '', bytes = 0;
+  words.forEach((w, i) => {
+    const piece = `<mark name="${i}"/>${xmlEsc(w)} `, b = Buffer.byteLength(piece);
+    if (cur && bytes + b > maxBytes - 40) { parts.push(cur); cur = ''; bytes = 0; }
+    cur += piece; bytes += b;
+  });
+  if (cur) parts.push(cur);
+  return parts.slice(0, maxParts).map(p => `<speak>${p}<mark name="end"/></speak>`);
 }
 
 // ── Strip markdown so the voice reads clean text ──────────────────────────────
@@ -55,18 +83,21 @@ function cleanForSpeech(text) {
     .replace(/\n/g,            ' ')   // single newlines
     .replace(/\s{2,}/g,        ' ')   // double spaces
     .trim()
+    .replace(/^([\s\S]{0,4500})\s[\s\S]*$/, (all, head) => all.length > 4500 ? head : all)   // a long answer stops at a whole word
     .slice(0, 4500);                   // safety limit (well within free tier)
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  cors(res);
+  cors(res, req);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   const { text, lang = 'en' } = req.body || {};
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  if (tooMany(ip)) return res.status(429).json({ error: 'busy' });   // the app falls back to the phone's own voice
 
-  if (!text?.trim()) {
+  if (typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'No text provided' });
   }
 
@@ -80,53 +111,54 @@ export default async function handler(req, res) {
   const cleanText = cleanForSpeech(text);
 
   try {
-    const r = await fetch(
-      `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${apiKey}`,
-      {
+    const inputWords = cleanText.split(/\s+/).filter(Boolean);
+    const speakPart = async (ssml) => {
+      const r = await fetch(`https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
-          enableWordTimeOffsets: true,   // ← gives us per-word timestamps 🎯
-          input: { text: cleanText },
+          input: { ssml },
           voice,
+          enableTimePointing: ['SSML_MARK'],   // per-word times for the highlight bar
           audioConfig: {
             audioEncoding:    'MP3',
             speakingRate:     0.90,      // slightly slower = clearer for students
             pitch:            0.0,
             volumeGainDb:     1.0,
-            effectsProfileId: ['headphone-class-device'], // richer sound
+            effectsProfileId: ['headphone-class-device'],
           },
         }),
+      });
+      const data = await r.json();
+      if (data.error) throw Object.assign(new Error(data.error.message || 'TTS failed'), { google: data.error });
+      return data;
+    };
+
+    const results = await Promise.all(ssmlParts(inputWords).map(speakPart));
+
+    // The MP3 parts play back to back; each part's word times move by the parts before it
+    let offset = 0;
+    const words = [], audio = [];
+    for (const data of results) {
+      audio.push(Buffer.from(data.audioContent || '', 'base64'));
+      let end = offset;
+      for (const tp of data.timepoints || []) {
+        const t = offset + (tp.timeSeconds || 0);
+        if (tp.markName === 'end') { end = t; continue; }
+        const word = inputWords[parseInt(tp.markName, 10)];
+        if (word) words.push({ word, time: t });
       }
-    );
-
-    const data = await r.json();
-
-    if (data.error) {
-      console.error('[TTS] Google API error:', data.error);
-      return res.status(500).json({ error: data.error.message || 'TTS failed' });
+      offset = Math.max(end, offset) + 0.05;
     }
 
-    // ── Map timepoints → [{word, time}] ──────────────────────────────────────
-    // Google returns: timepoints[i] = { markName: "3", timeSeconds: 1.25 }
-    // markName is the word index in the input text.
-    const inputWords = cleanText.split(/\s+/).filter(Boolean);
-    const timepoints = data.timepoints || [];
-
-    const words = timepoints
-      .map(tp => ({
-        word: inputWords[parseInt(tp.markName, 10)] ?? '',
-        time: tp.timeSeconds,
-      }))
-      .filter(w => w.word.length > 0);
-
     return res.status(200).json({
-      audioBase64: data.audioContent,  // base64 MP3
-      words,                           // [{word, time}] for karaoke
+      audioBase64: Buffer.concat(audio).toString('base64'),  // MP3
+      words,                                                 // [{word, time}] for the highlight bar
     });
 
   } catch (err) {
-    console.error('[TTS] Fetch error:', err.message);
+    console.error('[TTS] Error:', err.google || err.message);
     return res.status(500).json({ error: 'TTS request failed' });
   }
 }

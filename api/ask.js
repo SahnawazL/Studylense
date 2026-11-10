@@ -402,8 +402,9 @@ function detectSubjectType(subject, frontendType) {
 // ── Per-user spam guard ───────────────────────────────────────────────────────
 const spamTracker = new Map();
 
-function isSpamming(trackingId) {
-  const now = Date.now(), limit = 8, win = 60_000;
+function isSpamming(trackingId, limit = 8) {
+  const now = Date.now(), win = 60_000;
+  if (spamTracker.size > 5000) spamTracker.clear();   // never grows without end on a warm server
   const rec = spamTracker.get(trackingId) || { n: 0, t: now };
   if (now - rec.t > win) { spamTracker.set(trackingId, { n: 1, t: now }); return false; }
   if (rec.n >= limit) return true;
@@ -413,10 +414,16 @@ function isSpamming(trackingId) {
 }
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin',  '*');
+// Only StudyLens's own pages may call this from a browser (other sites can't
+// borrow the AI keys through a visitor's browser). Same-site calls need no header.
+function allowedOrigin(origin) {
+  return /^https:\/\/studylens[a-z0-9-]*\.vercel\.app$/i.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin);
+}
+function cors(res, req) {
+  const origin = String(req?.headers?.origin || '');
+  if (allowedOrigin(origin)) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 // ── SSE Streaming Helpers ─────────────────────────────────────────────────────
@@ -1708,16 +1715,30 @@ async function handleRequest(req, res) {
     });
   }
 
-  const {
-    mode, question, imageBase64, imageMime,
-    className, subject, lang = 'en', board = '', stream = '', simplify = false,
-    subjectType: rawSubjectType = 'general',
-    chapter = '',
-    // FIX: Accept conversation history from the frontend.
-    // This is an array of { role: 'user'|'assistant', content: string } objects
-    // built up over the course of a follow-up conversation.
-    history = [],
-  } = req.body || {};
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
+  const mode = body.mode;
+  if (!['text', 'photo', 'quiz', 'suggestions'].includes(mode)) {
+    return res.status(400).json({ error: 'Unknown request.' });
+  }
+  const question    = str(body.question, 6000);
+  const className   = str(body.className, 60);
+  const subject     = str(body.subject, 80);
+  const lang        = ['en', 'hi', 'bn', 'as'].includes(body.lang) ? body.lang : 'en';
+  const board       = str(body.board, 60);
+  const stream      = str(body.stream, 60);
+  const chapter     = str(body.chapter, 160);
+  const simplify    = body.simplify === true;
+  const rawSubjectType = str(body.subjectType, 30) || 'general';
+  const imageMime   = /^image\/(jpeg|png|webp|heic|heif|gif)$/i.test(body.imageMime || '') ? body.imageMime : 'image/jpeg';
+  const imageBase64 = typeof body.imageBase64 === 'string' && body.imageBase64.length <= 14_000_000 ? body.imageBase64 : '';
+  if (typeof body.imageBase64 === 'string' && !imageBase64) {
+    return res.status(413).json({ error: '📷 This photo is too large. Please take it again a little further away, or crop it.' });
+  }
+  // Follow-up conversation: the last few turns, as plain text
+  const history = (Array.isArray(body.history) ? body.history.slice(-8) : [])
+    .filter(h => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string')
+    .map(h => ({ role: h.role, content: h.content.slice(0, 16000) }));
 
   // ── [UPGRADE #3] Auto-detect subjectType from subject string ─────────────────
   // The frontend may send subjectType='general' for unknown or new subjects.
@@ -1730,7 +1751,7 @@ async function handleRequest(req, res) {
   const trackingId = (uid && uid.length > 4) ? `uid:${uid}` : `ip:${ip}`;
   // Suggestions are auto-fired after every answer (fire-and-forget).
   // Exempting them ensures they don't consume the user's 8/min question quota.
-  if (mode !== 'suggestions' && isSpamming(trackingId)) {
+  if (mode === 'suggestions' ? isSpamming('sug:' + trackingId, 20) : isSpamming(trackingId)) {
     return res.status(429).json({
       error: '⏳ Slow down! You are asking too many questions at once. Please wait a moment.'
     });
@@ -1782,12 +1803,12 @@ async function handleRequest(req, res) {
   // Called fire-and-forget after every answer — failures are silently ignored by
   // the client so they never block the user.
   if (mode === 'suggestions') {
-    if (!question?.trim() && !req.body?.answer) {
+    if (!question?.trim() && !body.answer) {
       return res.status(400).json({ error: 'No content for suggestions.' });
     }
     const result = await askSuggestions(groqKeys, geminiKeys, {
-      question:    req.body.question    || '',
-      answer:      req.body.answer      || '',
+      question:    question,
+      answer:      str(body.answer, 8000),
       className,
       subject,
       lang,
@@ -1878,7 +1899,7 @@ async function handleRequest(req, res) {
 
     if (geminiResult.error === 'quota') {
       return res.status(429).json({
-        error: '📚 StudyLens has reached its daily question limit. Please try again tomorrow, or add more API keys to increase capacity.'
+        error: '📚 StudyLens is very busy right now. Please try again in a little while.'
       });
     }
   }
@@ -1936,7 +1957,7 @@ async function recordHealth(m, res) {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  cors(res);
+  cors(res, req);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' });
 

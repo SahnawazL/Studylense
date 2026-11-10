@@ -42,11 +42,13 @@
 <link rel="icon" type="image/svg+xml" href="/studylens-logo.svg"/>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Hind:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/mhchem.min.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Hind:wght@300;400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" crossorigin="anonymous"/>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/mhchem.min.js"></script>
 <style>
 :root {
   --bg: #0f1117;
@@ -2812,11 +2814,12 @@ function slOpen(layer) {
   history[slLayer ? 'replaceState' : 'pushState']({ sl: layer }, '', url);
   slPaint(layer);
 }
-function slClose() { if (slLayer) history.back(); }
+var slLeaving = false;   // one Back at a time: a fast double press must not leave the app
+function slClose() { if (slLayer && !slLeaving) { slLeaving = true; history.back(); } }
 function slAfterClose(fn) {
   if (!slLayer) return fn();
   window.addEventListener('popstate', () => setTimeout(fn, 30), { once: true });
-  history.back();
+  if (!slLeaving) { slLeaving = true; history.back(); }
 }
 function openMenu() { slOpen('menu'); }
 function slOpenHist(tab) {
@@ -2824,11 +2827,23 @@ function slOpenHist(tab) {
   if (!sheet.classList.contains('open')) toggleHistSheet();
   switchHistTab(tab);
 }
+// Copy that also works where the Clipboard API is missing (in-app browsers, old phones)
+function slCopy(text) {
+  const legacy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove(); return ok;
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => true, legacy);
+  return Promise.resolve(legacy());
+}
 async function slShare() {
   const data = { title: 'StudyLens AI', text: slT().tagline, url: location.origin };
   try {
     if (navigator.share) await navigator.share(data);
-    else { await navigator.clipboard.writeText(data.url); showProfileToast(slT().copied); }
+    else if (await slCopy(data.url)) showProfileToast(slT().copied);
   } catch (_) {}
 }
 function slAction(act, val) {
@@ -2862,7 +2877,7 @@ document.addEventListener('click', e => {
   if (link) { e.preventDefault(); slOpen(link.dataset.sl); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && slLayer) slClose(); });
-window.addEventListener('popstate', e => slPaint(e.state && e.state.sl || null));
+window.addEventListener('popstate', e => { slLeaving = false; slPaint(e.state && e.state.sl || null); });
 if (window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => {
   if (slGet('studylens_theme', 'dark') === 'system') slApplyTheme('system');
 });
@@ -2914,6 +2929,27 @@ function slDialogClose() {
   if (st.pushed) { st.pushed = false; history.back(); }
   if (st.restore && st.restore.isConnected && st.restore.offsetParent) st.restore.focus({ preventScroll: true });
 }
+// ── Phone Back button: closes the open sheet (history, profile, folders) first ──
+var slBackStack = [];
+function slBackOpen(close) {
+  if (slBackStack.includes(close)) return;
+  history.pushState(Object.assign({}, history.state, { slBack: slBackStack.length + 1 }), '', location.href);
+  slBackStack.push(close);
+}
+function slBackDone(close) {                     // the sheet closed itself (its button, backdrop or a choice)
+  const i = slBackStack.lastIndexOf(close);
+  if (i < 0) return;
+  slBackStack.splice(i, 1);
+  if (history.state && history.state.slBack === i + 1) history.back();
+}
+window.addEventListener('popstate', e => {
+  const depth = (e.state && e.state.slBack) || 0;
+  while (slBackStack.length > depth) slBackStack.pop()();
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !slBackStack.length || slDlgState.open) return;
+  e.preventDefault(); slBackStack[slBackStack.length - 1]();
+});
 window.addEventListener('popstate', () => {
   const st = slDlgState;
   if (!st.open) return;
@@ -2949,7 +2985,7 @@ async function gateSignIn(force) {
     return slDialog({ mark: 'info', title: a.inAppTitle, body: a.inAppBody, onBack: close, actions: [
       { label: a.tryAnyway, run: () => gateSignIn(true) },
       { label: a.copyLink, style: 'primary', run: async () => {
-        try { await navigator.clipboard.writeText(location.origin); showProfileToast(a.copied); } catch (_) {}
+        if (await slCopy(location.origin)) showProfileToast(a.copied);
         close();
       } }
     ] });
@@ -3153,7 +3189,14 @@ async function slShareCards() {
   const blocks = [...draftBody.childNodes].filter(n => n.nodeType !== 3 || n.textContent.trim());
   const sized = [...draftBody.children].length === blocks.length ? blocks : null;
   if (!sized) {            // loose text between blocks is wrapped so it can be measured
-    blocks.forEach(n => { if (n.nodeType === 3 || n.nodeName === 'BR' || n.nodeName === 'STRONG' || n.nodeName === 'EM') { const w = document.createElement('div'); n.replaceWith(w); w.appendChild(n); } });
+    // a run of text, bold words and formulas stays one line of text, not one block per piece
+    let run = null;
+    [...draftBody.childNodes].forEach(n => {
+      const inline = n.nodeType === 3 || (n.nodeType === 1 && (n.nodeName === 'BR' || getComputedStyle(n).display.startsWith('inline')));
+      if (!inline) { run = null; return; }
+      if (!run) { if (n.nodeType === 3 && !n.textContent.trim()) return; run = document.createElement('div'); n.before(run); }
+      run.appendChild(n);
+    });
   }
   const parts = [...draftBody.children].map((el, i, all) => ({ el, height: (all[i + 1] ? all[i + 1].offsetTop : draftBody.scrollHeight) - el.offsetTop }));
   const headRoom = draft.offsetHeight - draft.querySelector('.share-a').offsetHeight;
@@ -3199,7 +3242,7 @@ async function shareAnswer() {
   const textOnly = async () => {
     try {
       if (navigator.share) await navigator.share({ title: 'StudyLens AI', text: words, url: link });
-      else { await navigator.clipboard.writeText(link); showProfileToast(slT().copied); }
+      else if (await slCopy(link)) showProfileToast(slT().copied);
     } catch (_) {}
   };
   slDialog({ mark: 'busy', title: g.making });
@@ -3634,7 +3677,11 @@ function initFirebaseAuth() {
     hideLoginGate();
     const firstName = user.displayName?.split(' ')[0] || 'You';
     name.textContent  = firstName;
-    avatar.src        = user.photoURL || '';
+    // No Google photo (or it fails to load) → the first letter of the name, not a broken image
+    const letter = (user.displayName || user.email || 'S').trim().charAt(0).toUpperCase().replace(/[<&"]/g, '') || 'S';
+    const letterAvatar = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f7cff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><rect width="64" height="64" rx="32" fill="url(#g)"/><text x="32" y="42" font-family="system-ui,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${letter}</text></svg>`);
+    avatar.onerror    = () => { avatar.onerror = null; avatar.src = letterAvatar; };
+    avatar.src        = user.photoURL || letterAvatar;
     avatar.classList.add('show');
     btn.classList.add('signed-in');
     btn.title         = 'Account and sign out';
@@ -3881,6 +3928,7 @@ function toggleHistSheet() {
     buildHistList();
     sheet.classList.add('open');
     backdrop.classList.add('open');
+    slBackOpen(closeHistSheet);
   }
 }
 
@@ -3890,6 +3938,7 @@ function closeHistSheet() {
   // Clear search so it doesn't persist to next open
   const si = document.getElementById('histSearchInput');
   if (si) si.value = '';
+  slBackDone(closeHistSheet);
 }
 
 async function clearAllHistory() {
@@ -3999,11 +4048,11 @@ function buildHistList() {
     const empty = document.createElement('div');
     empty.className = 'hist-empty-state';
     if (searchTerm) {
-      empty.innerHTML = `<span class="hist-empty-icon">🔍</span>No results for "<b>${searchTerm}</b>".<br/>Try a different word or subject name.`;
+      empty.innerHTML = `<span class="hist-empty-icon">🔍</span>No results for "<b>${escHtml(searchTerm)}</b>".<br/>Try a different word or subject name.`;
     } else if (histActiveTab === 'bookmarks') {
       if (activeFolderId !== 'all') {
         const f = bookmarkFolders[activeFolderId];
-        empty.innerHTML = `<span class="hist-empty-icon">${f?.emoji || '📁'}</span>No bookmarks in <b>${f?.name || 'this folder'}</b> yet.<br/>Tap ☆ Bookmark on any answer and choose this folder!`;
+        empty.innerHTML = `<span class="hist-empty-icon">${escHtml(f?.emoji || '📁')}</span>No bookmarks in <b>${escHtml(f?.name || 'this folder')}</b> yet.<br/>Tap ☆ Bookmark on any answer and choose this folder!`;
       } else {
         empty.innerHTML = '<span class="hist-empty-icon">⭐</span>No bookmarks yet.<br/>Tap ☆ Bookmark on any answer to save it here for later review!';
       }
@@ -4063,7 +4112,7 @@ function buildHistList() {
     if (item.mode === 'photo' && !item.question) {
       prev.textContent = '📷 Photo question';
     } else {
-      prev.textContent = (item.question || '').replace(/\n/g, ' ');
+      prev.textContent = (item.payload && item.payload.simplify ? '↺ ' + slUi('simplerLabel') + ': ' : '') + (item.question || '').replace(/\n/g, ' ');
     }
 
     // bookmark star + folder badge + move button (shown if bookmarked)
@@ -4518,6 +4567,7 @@ const T = {
     placeholderTextMode:'Question ready! Press Send to get the answer…',
     placeholderPhotoMode:'Ask anything about the photo, or just press Send…',
     aiTag:'✓ AI Answer',
+    slBoard:'Board',slStream:'Stream',lblBoard:'Select Board',phBoard:'Tap to choose your board…',phClsFirst:'Choose your board first…',quizLabel:'Quiz Me',bookmarkLabel:'Bookmark',bookmarkedLabel:'Bookmarked',simplerLabel:'Simpler',simplifyingLabel:'Simplifying…',loadingLabel:'Loading…',copiedShort:'Copied!',
     copyLabel:'Copy', speakLabel:'Read Aloud', stopLabel:'Stop', followLabel:'Ask Follow-up',
     followPlaceholder:'Ask something more about this answer…',
     tip1:'Type any question — theory, definition, formula, or concept.',
@@ -4542,6 +4592,7 @@ const T = {
     placeholderTextMode:'প্রশ্ন প্রস্তুত! উত্তর পেতে পাঠাও চাপো…',
     placeholderPhotoMode:'ছবি সম্পর্কে কিছু জিজ্ঞেস করো, অথবা পাঠাও চাপো…',
     aiTag:'✓ AI উত্তর',
+    slBoard:'বোর্ড',slStream:'স্ট্রিম',lblBoard:'বোর্ড বেছে নাও',phBoard:'তোমার বোর্ড বেছে নিতে ট্যাপ করো…',phClsFirst:'আগে বোর্ড বেছে নাও…',quizLabel:'কুইজ',bookmarkLabel:'বুকমার্ক',bookmarkedLabel:'বুকমার্ক হয়েছে',simplerLabel:'আরও সহজ',simplifyingLabel:'সহজ করা হচ্ছে…',loadingLabel:'লোড হচ্ছে…',copiedShort:'কপি হয়েছে',
     copyLabel:'কপি', speakLabel:'পড়ে শোনাও', stopLabel:'থামো', followLabel:'আরও জিজ্ঞেস করো',
     followPlaceholder:'এই উত্তর সম্পর্কে আরও কিছু জিজ্ঞেস করো…',
     tip1:'যেকোনো তাত্ত্বিক প্রশ্ন, সংজ্ঞা বা সূত্র লিখে জিজ্ঞেস করো।',
@@ -4566,6 +4617,7 @@ const T = {
     placeholderTextMode:'सवाल तैयार है! जवाब पाने के लिए भेजें दबाओ…',
     placeholderPhotoMode:'फोटो के बारे में कुछ पूछो, या बस भेजें दबाओ…',
     aiTag:'✓ AI जवाब',
+    slBoard:'बोर्ड',slStream:'स्ट्रीम',lblBoard:'बोर्ड चुनो',phBoard:'अपना बोर्ड चुनने के लिए टैप करो…',phClsFirst:'पहले बोर्ड चुनो…',quizLabel:'क्विज़',bookmarkLabel:'बुकमार्क',bookmarkedLabel:'बुकमार्क हो गया',simplerLabel:'और आसान',simplifyingLabel:'आसान किया जा रहा है…',loadingLabel:'लोड हो रहा है…',copiedShort:'कॉपी हो गया',
     copyLabel:'कॉपी', speakLabel:'पढ़कर सुनाओ', stopLabel:'रोको', followLabel:'और पूछो',
     followPlaceholder:'इस जवाब के बारे में और कुछ पूछो…',
     tip1:'कोई भी थ्योरी सवाल, परिभाषा या फॉर्मूला टाइप करके पूछो।',
@@ -4590,6 +4642,7 @@ const T = {
     placeholderTextMode:'প্ৰশ্ন প্ৰস্তুত! উত্তৰ পাবলৈ পঠিয়াওক টিপা…',
     placeholderPhotoMode:'ফটোৰ বিষয়ে কিবা সুধা, অথবা পঠিয়াওক টিপা…',
     aiTag:'✓ AI উত্তৰ',
+    slBoard:'বৰ্ড',slStream:'ষ্ট্ৰীম',lblBoard:'বৰ্ড বাছা',phBoard:'তোমাৰ বৰ্ড বাছিবলৈ টেপ কৰা…',phClsFirst:'আগতে বৰ্ড বাছা…',quizLabel:'কুইজ',bookmarkLabel:'বুকমাৰ্ক',bookmarkedLabel:'বুকমাৰ্ক হ’ল',simplerLabel:'আৰু সহজ',simplifyingLabel:'সহজ কৰা হৈছে…',loadingLabel:'ল’ড হৈছে…',copiedShort:'কপি হ’ল',
     copyLabel:'কপি', speakLabel:'পঢ়ি শুনোৱা', stopLabel:'থমা', followLabel:'আৰু সুধা',
     followPlaceholder:'এই উত্তৰৰ বিষয়ে আৰু কিবা সুধা…',
     tip1:'যিকোনো তাত্ত্বিক প্ৰশ্ন, সংজ্ঞা বা সূত্ৰ লিখি সুধা।',
@@ -4600,6 +4653,15 @@ const T = {
 };
 
 // ── STEPPER ──
+// Board · Class · (Stream) · Question — in the chosen language
+function slUi(key) { const t = T[currentLang] || T.en; return t[key] || T.en[key] || ''; }
+function slStepLabels() {
+  const t = T[typeof currentLang === 'string' && T[currentLang] ? currentLang : 'en'], hs = isHigherSecondary();
+  document.getElementById('sl1').textContent = t.slBoard;
+  document.getElementById('sl2').textContent = t.sl1;
+  document.getElementById('sl3').textContent = hs ? t.slStream : t.sl3;
+  document.getElementById('sl4').textContent = t.sl3;
+}
 function updateStepper() {
   const hs = isHigherSecondary();
   // Show/hide stream step nodes and lines
@@ -4607,18 +4669,7 @@ function updateStepper() {
   document.getElementById('sn4').style.display       = hs ? '' : 'none';
   document.getElementById('card3').style.display     = hs ? '' : 'none';
 
-  // Relabel steps
-  if (hs) {
-    document.getElementById('sl1').textContent = 'Board';
-    document.getElementById('sl2').textContent = 'Class';
-    document.getElementById('sl3').textContent = 'Stream';
-    document.getElementById('sl4').textContent = 'Question';
-    // sn3 circles show 3 (stream), sn4 shows 4 (question)
-  } else {
-    document.getElementById('sl1').textContent = 'Board';
-    document.getElementById('sl2').textContent = 'Class';
-    document.getElementById('sl3').textContent = 'Question';
-  }
+  slStepLabels();
 
   const s1d = !!selBoard;
   const s2d = !!selClass;
@@ -5005,8 +5056,8 @@ function processFile(f) {
     const original = ev.target.result;
     const img = new Image();
     img.onload = () => {
-      // Compress: max 1024px on longest side, 80% JPEG quality
-      const MAX = 1024;
+      // Compress: max 1600px on longest side (small print on a full page stays readable), 80% JPEG
+      const MAX = 1600;
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -5014,7 +5065,9 @@ function processFile(f) {
       }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const g2d = canvas.getContext('2d');
+      g2d.fillStyle = '#fff'; g2d.fillRect(0, 0, w, h);   // see-through parts (screenshots, PNGs) become white, not black
+      g2d.drawImage(img, 0, 0, w, h);
       const compressed = canvas.toDataURL('image/jpeg', 0.80);
       curB64 = compressed.split(',')[1];
       curFile = new File([f], f.name, { type: 'image/jpeg' }); // update mime to jpeg
@@ -5031,6 +5084,7 @@ function processFile(f) {
       updateStep3HeaderPhoto();
       updateStepper();
     };
+    img.onerror = () => { curFile = null; showError('📷 This photo type can\'t be opened here. Please take a new photo with the camera, or choose a JPG or PNG.'); };
     img.src = original;
   };
   reader.readAsDataURL(f);
@@ -5092,12 +5146,8 @@ function applyLang(lang) {
   const t=T[lang];
   document.getElementById('h-title').innerHTML=t.heroTitle;
   document.getElementById('h-sub').textContent=t.heroSub.replace(/<[^>]+>/g,'');
-  document.getElementById('sl1').textContent='Board';
-  document.getElementById('sl2').textContent=t.sl1; // Class
-  document.getElementById('sl3').textContent=isHigherSecondary() ? 'Stream' : t.sl2; // Subject or Stream
-  const sl4 = document.getElementById('sl4');
-  if (sl4) sl4.textContent=t.sl3; // Question
-  document.getElementById('lbl-board').textContent='Select Board';
+  slStepLabels();
+  document.getElementById('lbl-board').textContent=t.lblBoard;
   document.getElementById('lbl-cls').textContent=t.lblCls;
   document.getElementById('lbl-subj').textContent=t.lblSubj;
   document.getElementById('lbl-photo').textContent=t.lblPhoto;
@@ -5124,8 +5174,12 @@ function applyLang(lang) {
   if (t.speakLabel)  document.getElementById('speakLabel').textContent  = isSpeaking ? (t.stopLabel||'Stop') : t.speakLabel;
   if (t.followLabel) document.getElementById('followLabel').textContent = t.followLabel;
   if (t.followPlaceholder) document.getElementById('followupInput').placeholder = t.followPlaceholder;
-  if(!selBoard){const v=document.getElementById('val-board');v.textContent='Tap to choose your board…';v.classList.add('ph');}
-  if(!selClass){const v=document.getElementById('val-cls');v.textContent=selBoard?t.phCls:'Choose your board first…';v.classList.add('ph');}
+  if(!selBoard){const v=document.getElementById('val-board');v.textContent=t.phBoard;v.classList.add('ph');}
+  if(!selClass){const v=document.getElementById('val-cls');v.textContent=selBoard?t.phCls:t.phClsFirst;v.classList.add('ph');}
+  const setLbl=(id,txt)=>{const el=document.getElementById(id);if(el&&txt)el.textContent=txt;};
+  setLbl('quizLabel',t.quizLabel);
+  setLbl('bookmarkLabel',document.getElementById('bookmarkBtn')?.classList.contains('bookmarked')?t.bookmarkedLabel:t.bookmarkLabel);
+  if(!document.getElementById('simplerBtn')?.classList.contains('loading')) setLbl('simplerLabel',t.simplerLabel);
   if(!selSubj){const v=document.getElementById('val-subj');v.textContent=selClass?t.phSubj2:t.phSubj;v.classList.add('ph');}
   if(!selSubj){const v=document.getElementById('val-photo');if(!selSubj){v.textContent=t.phPhoto;v.classList.add('ph');}}
   else {
@@ -5653,7 +5707,7 @@ function hideActionsBar() {
   const sb = document.getElementById('simplerBtn');
   const sl = document.getElementById('simplerLabel');
   if (sb) sb.classList.remove('loading');
-  if (sl) sl.textContent = 'Simpler';
+  if (sl) sl.textContent = slUi('simplerLabel');
 }
 
 // ── COPY ──
@@ -5661,24 +5715,12 @@ function copyAnswer() {
   if (!lastAnswerText) return;
   const btn  = document.getElementById('copyBtn');
   const lbl  = document.getElementById('copyLabel');
-  navigator.clipboard.writeText(window.stripEmoji ? stripEmoji(lastAnswerText) : lastAnswerText).then(() => {
+  const original = lbl.textContent;
+  slCopy(window.stripEmoji ? stripEmoji(lastAnswerText) : lastAnswerText).then(ok => {
+    if (!ok) return;
     btn.classList.add('copied');
-    lbl.textContent = 'Copied!';
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      lbl.textContent = 'Copy';
-    }, 2000);
-  }).catch(() => {
-    // Fallback for older browsers
-    const ta = document.createElement('textarea');
-    ta.value = lastAnswerText;
-    ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.classList.add('copied');
-    lbl.textContent = 'Copied!';
-    setTimeout(() => { btn.classList.remove('copied'); lbl.textContent = 'Copy'; }, 2000);
+    lbl.textContent = slUi('copiedShort');
+    setTimeout(() => { btn.classList.remove('copied'); lbl.textContent = original; }, 2000);
   });
 }
 
@@ -5693,7 +5735,7 @@ async function toggleSpeak() {
   // Loading state
   btn.disabled = true;
   btn.classList.add('speaking');
-  lbl.textContent = '⏳ Loading…';
+  lbl.textContent = slUi('loadingLabel');
 
   try {
     const res = await fetch('/api/tts', {
@@ -5727,7 +5769,7 @@ async function toggleSpeak() {
       btn.disabled = false;
       btn.classList.remove('loading');
       btn.classList.add('speaking');
-      lbl.textContent = '■ Stop';
+      lbl.textContent = '■ ' + slUi('stopLabel');
       _startKaraoke();
     };
     ttsAudio.onended = () => stopSpeak();
@@ -5745,6 +5787,7 @@ async function toggleSpeak() {
 
 // Build the horizontal karaoke teleprompter bar
 function _buildKaraokeBar(words) {
+  if (!words || !words.length) return;   // no word times → no empty highlight bar
   let bar = document.getElementById('karaokeBar');
   if (!bar) {
     bar = document.createElement('div');
@@ -5836,7 +5879,7 @@ function _fallbackBrowserSpeak() {
   speakUtterance.onstart = () => {
     isSpeaking = true;
     if (btn) btn.classList.add('speaking');
-    if (lbl) lbl.textContent = '■ Stop';
+    if (lbl) lbl.textContent = '■ ' + slUi('stopLabel');
   };
   speakUtterance.onend = speakUtterance.onerror = () => {
     isSpeaking = false;
@@ -6002,7 +6045,7 @@ async function simplifyAnswer() {
 
   // Button loading state
   btn.classList.add('loading');
-  lbl.textContent = 'Simplifying…';
+  lbl.textContent = slUi('simplifyingLabel');
 
   const rb = document.getElementById('resultBody');
   const rc = document.getElementById('resultCard');
@@ -7079,8 +7122,8 @@ function openFolderPicker(currentFolderId, title) {
       const item = document.createElement('div');
       item.className = 'folder-picker-item' + (f.id === currentFolderId ? ' selected' : '');
       item.innerHTML = `
-        <span class="folder-picker-emoji">${f.emoji}</span>
-        <span class="folder-picker-name">${f.name}</span>
+        <span class="folder-picker-emoji">${escHtml(f.emoji || '')}</span>
+        <span class="folder-picker-name">${escHtml(f.name || '')}</span>
         <span class="folder-picker-cnt">${f.ids.size} saved</span>`;
       item.onclick = () => { closeFolderPicker(); resolve(f.id); };
       list.appendChild(item);
@@ -7097,12 +7140,14 @@ function openFolderPicker(currentFolderId, title) {
     list.appendChild(newBtn);
 
     document.getElementById('folderPickerBackdrop').classList.add('open');
+    slBackOpen(closeFolderPicker);
   });
 }
 
 function closeFolderPicker() {
   document.getElementById('folderPickerBackdrop').classList.remove('open');
   _folderPickerCallback = null;
+  slBackDone(closeFolderPicker);
 }
 
 async function createNewFolder() {
@@ -7141,7 +7186,7 @@ function toggleBookmark() {
     removeFromAllFolders(currentHistItemId);
     btn.classList.remove('bookmarked');
     icon.textContent = '☆';
-    lbl.textContent = 'Bookmark';
+    lbl.textContent = slUi('bookmarkLabel');
     const entry = sessionHistory.find(e => e.id === currentHistItemId);
     if (entry) { entry.bookmarked = false; persistHistory(); }
     persistBookmarks();
@@ -7152,7 +7197,7 @@ function toggleBookmark() {
     addToFolder('general', currentHistItemId);
     btn.classList.add('bookmarked');
     icon.textContent = '⭐';
-    lbl.textContent = 'Bookmarked';
+    lbl.textContent = slUi('bookmarkedLabel');
     const entry = sessionHistory.find(e => e.id === currentHistItemId);
     if (entry) { entry.bookmarked = true; persistHistory(); }
     persistBookmarks();
@@ -7191,11 +7236,11 @@ function setBookmarkBtnState(itemId) {
   if (itemId && bookmarkedIds.has(itemId)) {
     btn.classList.add('bookmarked');
     icon.textContent = '⭐';
-    lbl.textContent = 'Bookmarked';
+    lbl.textContent = slUi('bookmarkedLabel');
   } else {
     btn.classList.remove('bookmarked');
     icon.textContent = '☆';
-    lbl.textContent = 'Bookmark';
+    lbl.textContent = slUi('bookmarkLabel');
   }
 }
 
@@ -7219,7 +7264,7 @@ function buildFolderPills() {
     if (cnt === 0 && !DEFAULT_FOLDERS.find(d => d.id === f.id)) return; // hide empty custom folders
     const pill = document.createElement('div');
     pill.className = 'folder-pill' + (activeFolderId === f.id ? ' active' : '');
-    pill.innerHTML = `${f.emoji} ${f.name} <span class="fp-count">${cnt}</span>`;
+    pill.innerHTML = `${escHtml(f.emoji || '')} ${escHtml(f.name || '')} <span class="fp-count">${cnt}</span>`;
     pill.onclick = () => { activeFolderId = f.id; buildFolderPills(); buildHistList(); };
     bar.appendChild(pill);
   });
@@ -7588,12 +7633,14 @@ function openProfileModal() {
   document.getElementById('profileNameInput').value = '';
   document.getElementById('profileModalBackdrop').classList.add('open');
   document.getElementById('profileModal').classList.add('open');
+  slBackOpen(closeProfileModal);
   setTimeout(() => document.getElementById('profileNameInput').focus(), 280);
 }
 
 function closeProfileModal() {
   document.getElementById('profileModalBackdrop').classList.remove('open');
   document.getElementById('profileModal').classList.remove('open');
+  slBackDone(closeProfileModal);
 }
 
 function confirmSaveProfile() {
